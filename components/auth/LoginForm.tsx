@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -72,12 +73,12 @@ export default function LoginForm() {
           </form>
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Esqueceu a senha? <a href="#" className="text-purple-600 hover:text-purple-700 font-semibold underline">Recuperar</a>
+              Esqueceu a senha? <Link href={`/auth/recuperar`} className="text-purple-600 hover:text-purple-700 font-semibold underline">Recuperar</Link>
             </p>
           </div>
           <div className="mt-6 pt-6 border-t border-gray-200 text-center">
             <p className="text-sm text-gray-500">
-              Não tem uma conta? <a href="#" className="text-purple-600 hover:text-purple-700 font-semibold">Registre-se</a>
+              Não tem uma conta? <Link href={`/auth/registro`} className="text-purple-600 hover:text-purple-700 font-semibold">Registre-se</Link>
             </p>
           </div>
         </CardContent>
