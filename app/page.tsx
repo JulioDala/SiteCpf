@@ -64,7 +64,7 @@ export default function CPFLandingPage() {
                 <img src="./images/ico-paz-flor.png" alt="Logo CPF" className="w-full h-full" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Centro Polivalente</h1>
+                <h1 className="text-xl font-bold text-gray-900">Centro Cultural Paz Flor</h1>
                 <p className="text-xs text-blue-600">Portal do Cliente</p>
               </div>
             </div>
