@@ -14,6 +14,7 @@ import { desportoSessions, gymSessions } from "@/storage/mock";//mock estatico
 
 import { useClienteReservasStore, normalizarReserva, ReservaCompleta } from '@/storage/cliente-storage';
 import { useAuthStore } from '@/storage/atuh-storage';
+import FormCreairReserva from '@/components/layout/modal-criar-reserva';
 
 export default function ClientPortalHome() {
   const router = useRouter();
@@ -166,7 +167,9 @@ export default function ClientPortalHome() {
       </div>
     );
   };
-
+  function handleReserva(data: any) {
+    console.log(data);
+  }
   // ✅ Renderizar informações de caução
   const renderCaucaoInfo = (reserva: ReservaCompleta) => {
     const caucao = reserva.caucoes?.[0]; // Pegar primeira caução
@@ -387,7 +390,24 @@ export default function ClientPortalHome() {
                   <div className="flex justify-between items-center">
                     <h3 className="text-2xl font-bold text-gray-900">Atividades Recentes</h3>
                     <div className="flex space-x-3">
-                      <Button size="lg" className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2">
+                      <Button
+                        size="lg"
+                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+                        onClick={() => {
+                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
+                        }}
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nova Reserva</span>
+                      </Button>
+
+                      <Button
+                        size="lg"
+                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+                        onClick={() => {
+                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
+                        }}
+                      >
                         <Plus className="w-4 h-4" />
                         <span>Nova Reserva</span>
                       </Button>
@@ -492,10 +512,16 @@ export default function ClientPortalHome() {
                     <h3 className="text-2xl font-bold text-gray-900">
                       Reservas de Espaços ({reservasNormalizadas.length})
                     </h3>
-                    <Button size="lg" className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2">
-                      <Plus className="w-4 h-4" />
-                      <span>Nova Reserva</span>
-                    </Button>
+                     <Button
+                        size="lg"
+                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+                        onClick={() => {
+                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
+                        }}
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nova Reserva</span>
+                      </Button>
                   </div>
 
                   {reservasNormalizadas.length === 0 ? (
@@ -702,6 +728,12 @@ export default function ClientPortalHome() {
         <ModalDetalheGinasio
           data={showModal.item}
           open={true}
+          onClose={closeModal}
+        />
+      )}
+      {showModal.type === 'RegistarReserva' && (
+        <FormCreairReserva
+          handleReserva={handleReserva}
           onClose={closeModal}
         />
       )}
