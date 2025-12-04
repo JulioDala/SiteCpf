@@ -15,6 +15,7 @@ import { desportoSessions, gymSessions } from "@/storage/mock";//mock estatico
 import { useClienteReservasStore, normalizarReserva, ReservaCompleta } from '@/storage/cliente-storage';
 import { useAuthStore } from '@/storage/atuh-storage';
 import FormCreairReserva from '@/components/layout/modal-criar-reserva';
+import { useBackendReservaStore } from '@/storage/reserva-store';
 
 export default function ClientPortalHome() {
   const router = useRouter();
@@ -33,6 +34,8 @@ export default function ClientPortalHome() {
     clearError
   } = useClienteReservasStore();
 
+  const {loading : loadingReserva}=useBackendReservaStore();
+
   const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
 
@@ -47,7 +50,7 @@ export default function ClientPortalHome() {
 
       getClienteComReservasFuturas(numeroCliente);
     }
-  }, [numeroCliente]);
+  }, [numeroCliente,loadingReserva]);
 
   // ✅ Processar reservas normalizadas
   const reservasNormalizadas: ReservaCompleta[] = React.useMemo(() => {
