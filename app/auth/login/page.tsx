@@ -169,3 +169,4 @@ export default function LoginForm() {
     </div>
   );
 }
+export const dynamic = 'force-dynamic';
