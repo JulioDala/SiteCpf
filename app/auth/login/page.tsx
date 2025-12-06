@@ -1,6 +1,5 @@
-
-import { Suspense, useEffect } from 'react';
-import LoginFormContent from './LoginFormContent'; 
+import { Suspense } from 'react'; // ✅ Remova useEffect daqui!
+import LoginFormContent from './LoginFormContent'; // Child client
 
 // Fallback mostrado durante hidração (breve)
 function LoginFallback() {
