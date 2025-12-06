@@ -93,7 +93,7 @@ importers:
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tanstack/react-query':
-        specifier: ^5.90.7
+        specifier: ^5.90.12
         version: 5.90.12(react@19.2.0)
       axios:
         specifier: ^1.13.2
@@ -132,13 +132,13 @@ importers:
         specifier: 19.2.0
         version: 19.2.0
       react-day-picker:
-        specifier: ^9.11.2
+        specifier: ^9.11.3
         version: 9.11.3(react@19.2.0)
       react-dom:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
       react-hook-form:
-        specifier: ^7.66.1
+        specifier: ^7.68.0
         version: 7.68.0(react@19.2.0)
       react-resizable-panels:
         specifier: ^3.0.6
@@ -153,23 +153,23 @@ importers:
         specifier: ^11.26.4
         version: 11.26.4
       tailwind-merge:
-        specifier: ^3.3.1
+        specifier: ^3.4.0
         version: 3.4.0
       tailwind-variants:
-        specifier: ^3.1.1
+        specifier: ^3.2.2
         version: 3.2.2(tailwind-merge@3.4.0)(tailwindcss@4.1.17)
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zod:
-        specifier: ^4.1.12
+        specifier: ^4.1.13
         version: 4.1.13
       zustand:
-        specifier: ^5.0.8
+        specifier: ^5.0.9
         version: 5.0.9(@types/react@19.2.7)(immer@11.0.1)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
     devDependencies:
       '@tailwindcss/postcss':
-        specifier: ^4
+        specifier: ^4.1.17
         version: 4.1.17
       '@types/axios':
         specifier: ^0.14.4
@@ -178,28 +178,28 @@ importers:
         specifier: ^3.0.6
         version: 3.0.6
       '@types/node':
-        specifier: ^20
+        specifier: ^20.19.25
         version: 20.19.25
       '@types/react':
-        specifier: ^19
+        specifier: ^19.2.7
         version: 19.2.7
       '@types/react-dom':
-        specifier: ^19
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.7)
       '@types/recharts':
         specifier: ^2.0.1
         version: 2.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react-is@16.13.1)(react@19.2.0)(redux@5.0.1)
       eslint:
-        specifier: ^9
+        specifier: ^9.39.1
         version: 9.39.1(jiti@2.6.1)
       eslint-config-next:
         specifier: 16.0.1
         version: 16.0.1(@typescript-eslint/parser@8.48.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
       tailwindcss:
-        specifier: ^4
+        specifier: ^4.1.17
         version: 4.1.17
       typescript:
-        specifier: ^5
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:
@@ -1668,8 +1668,8 @@ packages:
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
-  baseline-browser-mapping@2.9.3:
-    resolution: {integrity: sha512-8QdH6czo+G7uBsNo0GiUfouPN1lRzKdJTGnKXwe12gkFbnnOUaUKGN55dMkfy+mnxmvjwl9zcI4VncczcVXDhA==}
+  baseline-browser-mapping@2.9.4:
+    resolution: {integrity: sha512-ZCQ9GEWl73BVm8bu5Fts8nt7MHdbt5vY9bP6WGnUh+r3l8M7CgfyTlwsgCbMC66BNxPr6Xoce3j66Ms5YUQTNA==}
     hasBin: true
 
   brace-expansion@1.1.12:
@@ -4628,7 +4628,7 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  baseline-browser-mapping@2.9.3: {}
+  baseline-browser-mapping@2.9.4: {}
 
   brace-expansion@1.1.12:
     dependencies:
@@ -4645,7 +4645,7 @@ snapshots:
 
   browserslist@4.28.1:
     dependencies:
-      baseline-browser-mapping: 2.9.3
+      baseline-browser-mapping: 2.9.4
       caniuse-lite: 1.0.30001759
       electron-to-chromium: 1.5.266
       node-releases: 2.0.27
