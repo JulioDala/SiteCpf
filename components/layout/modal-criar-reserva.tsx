@@ -140,7 +140,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     console.log("🔵 Cliente ID:", userLogin?.cliente?._id);
 
     if (!userLogin?.cliente?._id) {
-      console.error("❌ Cliente não autenticado!");
+      console.error("Cliente não autenticado!");
       toast.error('Erro', {
         description: 'Usuário não autenticado. Faça login novamente.',
       });
@@ -176,13 +176,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
         diasProducao: data.diasProducao || 0,
         outrasInformacoes: data.outrasInformacoes || '',
       };
-
-      console.log("📤 Payload a ser enviado:", payload);
-      console.log("📤 URL da API:", process.env.NEXT_PUBLIC_API_URL || "http://localhost:3009");
-
       const reservaCriada = await createReserva(payload);
 
-      console.log("✅ Reserva criada com sucesso:", reservaCriada);
+      console.log("Reserva criada com sucesso:", reservaCriada);
 
       toast.success('Sucesso!', {
         description: 'Reserva criada com sucesso!',
@@ -191,12 +187,8 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
       handleReserva(reservaCriada);
       onClose();
     } catch (error: any) {
-      console.error("❌ ========== ERRO AO CRIAR RESERVA ==========");
-      console.error("❌ Error completo:", error);
-      console.error("❌ Error response:", error.response);
-      console.error("❌ Error data:", error.response?.data);
-      console.error("❌ Error message:", error.message);
 
+      console.error("Error message:", error.message);
       toast.error('Erro ao criar reserva', {
         description: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação.',
       });
@@ -207,12 +199,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
   };
 
   const clienteInfo = userLogin?.cliente;
-
-  console.log("🔵 Renderizando formulário");
-  console.log("🔵 Espaços carregados:", espacos.length);
-  console.log("🔵 Tipos de eventos carregados:", tiposEventos.length);
-  console.log("🔵 Loading estados:", { espacosLoading, eventosLoading, reservaLoading, isSubmitting });
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-slideUp">
@@ -286,11 +272,16 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Espaço *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-white">
+                            <SelectTrigger 
+                              className={cn(
+                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
+                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
+                              )}
+                            >
                               <SelectValue placeholder="Selecione um espaço" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-white" side="bottom">
                             {espacosLoading && (
                               <div className="p-2 text-sm text-gray-500">Carregando espaços...</div>
                             )}
@@ -301,7 +292,11 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <div className="p-2 text-sm text-gray-500">Nenhum espaço disponível</div>
                             )}
                             {espacos.map((espaco: any) => (
-                              <SelectItem key={espaco._id} value={espaco._id}>
+                              <SelectItem 
+                                key={espaco._id} 
+                                value={espaco._id}
+                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
+                              >
                                 <div className="flex items-center gap-2">
                                   <MapPin className="w-4 h-4 text-blue-600" />
                                   <div>
@@ -325,11 +320,16 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Tipo de Evento *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-white">
+                            <SelectTrigger 
+                              className={cn(
+                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
+                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
+                              )}
+                            >
                               <SelectValue placeholder="Selecione o tipo" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-white" side="bottom">
                             {eventosLoading && (
                               <div className="p-2 text-sm text-gray-500">Carregando tipos...</div>
                             )}
@@ -340,7 +340,11 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <div className="p-2 text-sm text-gray-500">Nenhum tipo de evento disponível</div>
                             )}
                             {tiposEventos.map((evento) => (
-                              <SelectItem key={evento._id} value={evento._id!}>
+                              <SelectItem 
+                                key={evento._id} 
+                                value={evento._id!}
+                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
+                              >
                                 {evento.nome}
                               </SelectItem>
                             ))}
@@ -364,8 +368,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <Button
                                 variant="outline"
                                 className={cn(
-                                  "w-full pl-3 text-left font-normal bg-white",
-                                  !field.value && "text-muted-foreground"
+                                  "w-full pl-3 text-left font-normal bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
+                                  !field.value && "text-muted-foreground",
+                                  field.value && "border-purple-500 bg-purple-100 text-purple-900"
                                 )}
                               >
                                 {field.value ? (
@@ -402,13 +407,22 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Hora de Início *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-white">
+                            <SelectTrigger 
+                              className={cn(
+                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
+                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
+                              )}
+                            >
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-white" side="bottom">
                             {horariosDisponiveis.map((horario) => (
-                              <SelectItem key={horario} value={horario}>
+                              <SelectItem 
+                                key={horario} 
+                                value={horario}
+                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
+                              >
                                 <div className="flex items-center gap-2">
                                   <Clock className="w-4 h-4 text-blue-600" />
                                   {horario}
@@ -429,13 +443,22 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Hora de Término *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-white">
+                            <SelectTrigger 
+                              className={cn(
+                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
+                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
+                              )}
+                            >
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-white" side="bottom">
                             {horariosDisponiveis.map((horario) => (
-                              <SelectItem key={horario} value={horario}>
+                              <SelectItem 
+                                key={horario} 
+                                value={horario}
+                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
+                              >
                                 <div className="flex items-center gap-2">
                                   <Clock className="w-4 h-4 text-blue-600" />
                                   {horario}
@@ -462,38 +485,12 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             <Input
                               type="number"
                               min={1}
-                              className="pl-10 bg-white"
+                              className="pl-10 bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                             />
                           </div>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    name="valor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium text-gray-700">Valor (AOA)</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              className="pl-10 bg-white"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormDescription className="text-xs">
-                          Valor total da reserva em Kwanzas
-                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -514,7 +511,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                       <FormControl>
                         <Textarea
                           placeholder="Descreva os detalhes do evento..."
-                          className="min-h-[80px] bg-white"
+                          className="min-h-[80px] bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                           {...field}
                         />
                       </FormControl>
@@ -548,6 +545,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <Switch
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
+                                className="data-[state=checked]:bg-purple-600"
                               />
                             </FormControl>
                           </FormItem>
@@ -566,6 +564,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <Switch
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
+                                className="data-[state=checked]:bg-purple-600"
                               />
                             </FormControl>
                           </FormItem>
@@ -584,6 +583,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <Switch
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
+                                className="data-[state=checked]:bg-purple-600"
                               />
                             </FormControl>
                           </FormItem>
@@ -610,6 +610,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <Switch
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
+                                  className="data-[state=checked]:bg-purple-600"
                                 />
                               </FormControl>
                             </FormItem>
@@ -625,7 +626,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <FormControl>
                                   <Input 
                                     placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white" 
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
                                     {...field} 
                                   />
                                 </FormControl>
@@ -650,6 +651,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <Switch
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
+                                  className="data-[state=checked]:bg-purple-600"
                                 />
                               </FormControl>
                             </FormItem>
@@ -665,7 +667,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <FormControl>
                                   <Input 
                                     placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white" 
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
                                     {...field} 
                                   />
                                 </FormControl>
@@ -690,6 +692,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <Switch
                                   checked={field.value}
                                   onCheckedChange={field.onChange}
+                                  className="data-[state=checked]:bg-purple-600"
                                 />
                               </FormControl>
                             </FormItem>
@@ -705,7 +708,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                                 <FormControl>
                                   <Input 
                                     placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white" 
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
                                     {...field} 
                                   />
                                 </FormControl>
@@ -741,6 +744,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
+                            className="data-[state=checked]:bg-purple-600"
                           />
                         </FormControl>
                       </FormItem>
@@ -757,7 +761,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             <Input
                               type="number"
                               min={0}
-                              className="bg-white"
+                              className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                             />
@@ -786,7 +790,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                       <FormControl>
                         <Textarea
                           placeholder="Requisitos especiais, restrições alimentares, observações importantes..."
-                          className="min-h-[100px] bg-white"
+                          className="min-h-[100px] bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                           {...field}
                         />
                       </FormControl>

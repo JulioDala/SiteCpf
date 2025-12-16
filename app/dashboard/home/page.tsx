@@ -32,6 +32,7 @@ import { desportoSessions, gymSessions } from "@/storage/mock"
 import { useClienteReservasStore, normalizarReserva, type ReservaCompleta } from "@/storage/cliente-storage"
 import { useAuthStore } from "@/storage/atuh-storage"
 import FormCreairReserva from "@/components/layout/modal-criar-reserva"
+import { useBackendReservaStore } from "@/storage/reserva-store"
 
 type ViewMode = "cards" | "table" | "list"
 
@@ -112,8 +113,10 @@ export default function ClientPortalHome() {
     clearError,
   } = useClienteReservasStore()
 
-  const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga"
-  const numeroCliente = userLogin?.cliente.numeroCliente || ""
+  const {loading : loadingReserva}=useBackendReservaStore();
+
+  const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
+  const numeroCliente = userLogin?.cliente.numeroCliente || "";
 
   useEffect(() => {
     if (numeroCliente) {
@@ -134,7 +137,7 @@ export default function ClientPortalHome() {
 
   const stats = React.useMemo(() => {
     const reservasAtivas = reservasFuturasNormalizadas.filter(
-      (r) => r.status === "Confirmada" || r.status === "Pendente",
+      (r) => r.status === "Confirmada" as "CONFIRMADO" || r.status === "Pendente" as "PENDENTE",
     ).length
 
     const proximaReserva = reservasFuturasNormalizadas.sort(
