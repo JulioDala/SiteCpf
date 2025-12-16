@@ -824,7 +824,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 <button
                   type="submit"
                   disabled={isSubmitting || reservaLoading}
-                  className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => console.log("🔵 Botão submit clicado")}
                 >
                   {isSubmitting || reservaLoading ? (

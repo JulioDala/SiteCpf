@@ -139,10 +139,10 @@ export interface ReservaCompleta {
   valor: number;
   totalPago: number;
   saldoPendente: number;
-  paymentStatus: 'PENDENTE' | 'PARCIALMENTE_PAGO' | 'PAGO' | 'VENCIDO';
+  paymentStatus: string;
   
   // Status e detalhes
-  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO';
+  status: string;
   participants: number;
   paymentMethod?: string;
   description?: string;

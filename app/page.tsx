@@ -75,7 +75,7 @@ export default function CPFLandingPage() {
               <a href="#features" className="text-gray-600 hover:text-purple-600 transition font-medium">Recursos</a>
               <a href="#about" className="text-gray-600 hover:text-purple-600 transition font-medium">Sobre</a>
               <Button 
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white text-white"
                 onClick={handleLogin}
               >
                 Entrar no Sistema
@@ -99,7 +99,7 @@ export default function CPFLandingPage() {
                 <a href="#features" className="text-gray-600 hover:text-purple-600 transition font-medium">Recursos</a>
                 <a href="#about" className="text-gray-600 hover:text-purple-600 transition font-medium">Sobre</a>
                 <Button 
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white"
                   onClick={handleLogin}
                 >
                   Entrar no Sistema

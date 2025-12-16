@@ -113,9 +113,9 @@ export default function ClientPortalHome() {
     clearError,
   } = useClienteReservasStore()
 
-  const {loading : loadingReserva}=useBackendReservaStore();
+  const { loading: loadingReserva } = useBackendReservaStore();
 
-  const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
+  const clientName = userLogin?.cliente.nome || "";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
 
   useEffect(() => {
@@ -136,28 +136,45 @@ export default function ClientPortalHome() {
   }, [reservasFuturas])
 
   const stats = React.useMemo(() => {
-    const reservasAtivas = reservasFuturasNormalizadas.filter(
-      (r) => r.status === "Confirmada" as "CONFIRMADO" || r.status === "Pendente" as "PENDENTE",
+    // Calcular reservas ativas (Confirmada ou Pendente)
+    const reservasAtivas = reservasNormalizadas.filter(
+      (r) => r.status === "Confirmada" || r.status === "Pendente"
     ).length
 
-    const proximaReserva = reservasFuturasNormalizadas.sort(
-      (a, b) => new Date(a.data).getTime() - new Date(b.data).getTime(),
-    )[0]
+    // Calcular horas totais de reservas
+    const horasGinasio = reservasNormalizadas.reduce((total, reserva) => {
+      const [horaInicioH, horaInicioM] = reserva.horaInicio.split(':').map(Number)
+      const [horaTerminoH, horaTerminoM] = reserva.horaTermino.split(':').map(Number)
 
+      const minutosInicio = horaInicioH * 60 + horaInicioM
+      const minutosTermino = horaTerminoH * 60 + horaTerminoM
+      const duracaoMinutos = minutosTermino - minutosInicio
+      const duracaoHoras = duracaoMinutos / 60
+
+      return total + duracaoHoras
+    }, 0)
+
+    // Encontrar próxima reserva futura
+    const agora = new Date()
+    const reservasFuturas = reservasNormalizadas
+      .filter(r => new Date(r.data) >= agora && (r.status === "Confirmada" || r.status === "Pendente"))
+      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+
+    const proximaReserva = reservasFuturas[0]
     const proximaReservaTexto = proximaReserva
       ? new Date(proximaReserva.data).toLocaleDateString("pt-PT", {
-          weekday: "long",
-          day: "numeric",
-          month: "short",
-        })
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+      })
       : "Sem reservas"
 
     return {
       reservasAtivas,
-      horasGinasio: 12,
+      horasGinasio: Math.round(horasGinasio),
       proximaReserva: proximaReservaTexto,
     }
-  }, [reservasFuturasNormalizadas])
+  }, [reservasNormalizadas])
 
   const gymPagamento = {
     total: 5000,
@@ -216,11 +233,10 @@ export default function ClientPortalHome() {
             </span>
             <Badge
               variant="secondary"
-              className={`rounded-full px-2 py-0.5 ${
-                pag.status === "pago" || pag.status === "Pago"
+              className={`rounded-full px-2 py-0.5 ${pag.status === "pago" || pag.status === "Pago"
                   ? STATUS_COLORS["Pago"].badge
                   : STATUS_COLORS["Parcial"].badge
-              }`}
+                }`}
             >
               {pag.status}
             </Badge>
@@ -288,7 +304,7 @@ export default function ClientPortalHome() {
                   getClienteComReservasFuturas(numeroCliente)
                 }
               }}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white"
             >
               Tentar Novamente
             </Button>
@@ -377,18 +393,20 @@ export default function ClientPortalHome() {
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-emerald-100 font-medium mb-1">Horas no Ginásio</p>
+                  <p className="text-sm text-emerald-100 font-medium mb-1">Total de Horas Reservadas</p>
                   <p className="text-3xl font-bold text-white">
                     {stats.horasGinasio}
                     <span className="text-lg text-emerald-100">h</span>
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
-                  <Dumbbell className="w-6 h-6 text-white" />
+                  <Clock className="w-6 h-6 text-white" />
                 </div>
               </div>
               <div className="pt-3 border-t border-emerald-400/30">
-                <p className="text-xs text-emerald-100 font-medium">60% da meta mensal</p>
+                <p className="text-xs text-emerald-100 font-medium">
+                  {reservasNormalizadas.length} {reservasNormalizadas.length === 1 ? 'reserva' : 'reservas'} no total
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -447,7 +465,7 @@ export default function ClientPortalHome() {
                     <h3 className="text-xl font-bold text-foreground">Atividades Recentes</h3>
                     <div className="flex space-x-3">
                       <Button
-                        className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center space-x-2"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white font-medium shadow-sm hover:shadow-md transition-all flex items-center space-x-2"
                         onClick={() => {
                           setShowModal({
                             type: "RegistarReserva",
@@ -458,21 +476,9 @@ export default function ClientPortalHome() {
                         <Plus className="w-4 h-4" />
                         <span>Nova Reserva</span>
                       </Button>
-                      <Button
-                        className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center space-x-2"
-                        onClick={() => {
-                          setShowModal({
-                            type: "RegistarReserva",
-                            item: null,
-                          })
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Nova Inscrição</span>
-                      </Button>
                     </div>
                   </div>
-                  <div className="grid md:grid-cols-3 gap-6">
+                  <div className="grid md:grid-cols gap-6">
                     {/* Próximas Reservas */}
                     <Card className="border border-border shadow-md hover:shadow-lg transition-shadow">
                       <CardHeader className="pb-4 border-b border-border bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/30">
@@ -512,7 +518,7 @@ export default function ClientPortalHome() {
                     </Card>
 
                     {/* Desporto Recente */}
-                    <Card className="border border-border shadow-md hover:shadow-lg transition-shadow">
+                    {/* <Card className="border border-border shadow-md hover:shadow-lg transition-shadow">
                       <CardHeader className="pb-4 border-b border-border bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/30">
                         <CardTitle className="text-base font-semibold text-foreground flex items-center space-x-2">
                           <Dumbbell className="w-5 h-5 text-emerald-600" />
@@ -540,10 +546,10 @@ export default function ClientPortalHome() {
                           ))}
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
 
                     {/* Histórico Ginásio */}
-                    <Card className="border border-border shadow-md hover:shadow-lg transition-shadow">
+                    {/* <Card className="border border-border shadow-md hover:shadow-lg transition-shadow">
                       <CardHeader className="pb-4 border-b border-border bg-gradient-to-r from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/30">
                         <CardTitle className="text-base font-semibold text-foreground flex items-center space-x-2">
                           <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -568,7 +574,7 @@ export default function ClientPortalHome() {
                           ))}
                         </div>
                       </CardContent>
-                    </Card>
+                    </Card> */}
                   </div>
                 </div>
               )}
@@ -610,7 +616,7 @@ export default function ClientPortalHome() {
                         </Button>
                       </div>
                       <Button
-                        className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center space-x-2"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center space-x-2"
                         onClick={() => {
                           setShowModal({
                             type: "RegistarReserva",
