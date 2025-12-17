@@ -6,16 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import ModalDetalheGinasio from '@/components/layout/modal-detalhe-ginasio';
 import ModalDetalheDesporto from '@/components/layout/modal-detalho-desporto';
 import ModalDetalheReserva from '@/components/layout/modal-detalhe-reserva';
-import { desportoSessions, gymSessions } from "@/storage/mock";//mock estatico
-
 import { useClienteReservasStore, normalizarReserva, ReservaCompleta } from '@/storage/cliente-storage';
 import { useAuthStore } from '@/storage/atuh-storage';
 import FormCreairReserva from '@/components/layout/modal-criar-reserva';
 import { useBackendReservaStore } from '@/storage/reserva-store';
+import { useDesportoStore } from '@/storage/cliente-desporto-stores';
 
 export default function ClientPortalHome() {
   const router = useRouter();
@@ -34,25 +31,79 @@ export default function ClientPortalHome() {
     clearError
   } = useClienteReservasStore();
 
-  const {loading : loadingReserva}=useBackendReservaStore();
+  // ✅ Store de desporto
+  const {
+    desportosFuturos,
+    desportosCompletos,
+    desportoEstatistica,
+    fetchDesportosEstatistica,
+    errorEstatistica,
+    loadingEstatistica,
+    loadingFuturos: loadingDesportoFuturos,
+    errorFuturos: errorDesportoFuturos,
+    loadingCompletos: loadingDesportoCompletos,
+    errorCompletos: errorDesportoCompletos,
+    fetchDesportosFuturos,
+    fetchDesportosCompletos
+  } = useDesportoStore();
+
+  const {
+    fetchEstatisticaReserva,
+    reservaEstatistica,
+    loadingEstatistica: loadingReservaEstatistica,
+    errorEstatistica: errorReservaEstatistica
+  } = useBackendReservaStore();
 
   const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
+  const email = userLogin?.cliente.email || "";
+  const idCliente = userLogin?.cliente._id || "";
 
   // ✅ Carregar dados do cliente ao montar componente
   useEffect(() => {
-    if (numeroCliente) {
+    const loadData = async () => {
+      if (numeroCliente) {
+        await getClienteCompletoPopulate(numeroCliente);
+        await getClienteComReservasFuturas(numeroCliente);
+      }
 
-      getClienteCompletoPopulate(numeroCliente);
-      setTimeout(function () {
-        console.log("🔵 Carregando dados do cliente:", clienteCompleto);
-      }, 1000)
+      if (email) {
+        await fetchDesportosFuturos(email);
+        await fetchDesportosCompletos(email);
+        await fetchDesportosEstatistica(email);
+      }
+    };
 
-      getClienteComReservasFuturas(numeroCliente);
+    loadData();
+  }, [numeroCliente, email]);
+
+  // ✅ Carregar estatísticas de reserva separadamente
+  useEffect(() => {
+    if (idCliente) {
+      const loadReservaStats = async () => {
+        try {
+          await fetchEstatisticaReserva(idCliente);
+        } catch (error) {
+          console.error("Erro ao carregar estatísticas de reserva:", error);
+        }
+      };
+
+      loadReservaStats();
     }
-  }, [numeroCliente,loadingReserva]);
+  }, [idCliente, fetchEstatisticaReserva]);
 
-  // ✅ Processar reservas normalizadas
+  useEffect(() => {
+    if (reservaEstatistica) {
+      console.log("📊 Estatísticas de reserva carregadas:", reservaEstatistica);
+    }
+  }, [reservaEstatistica]);
+
+  useEffect(() => {
+    if (desportoEstatistica) {
+      console.log("🏃 Estatísticas de desporto carregadas:", desportoEstatistica);
+    }
+  }, [desportoEstatistica]);
+
   const reservasNormalizadas: ReservaCompleta[] = React.useMemo(() => {
     if (!clienteCompleto?.reservas) return [];
     return clienteCompleto.reservas.map(normalizarReserva);
@@ -82,17 +133,27 @@ export default function ClientPortalHome() {
 
     return {
       reservasAtivas,
-      horasGinasio: 12, // TODO: Calcular dinamicamente quando houver endpoint
       proximaReserva: proximaReservaTexto
     };
   }, [reservasFuturasNormalizadas]);
 
-  // Pagamento do Ginásio (sem caução, pagamento único)
-  const gymPagamento = {
-    total: 5000,
-    pago: true,
-    dataPagamento: "01 Out 2025",
-    descricao: "Taxa anual de ginásio (sem caução)"
+  // Função auxiliar para formatar valores
+  const formatCurrency = (value: number): string => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`;
+    }
+    return value.toString();
+  };
+
+  const formatCurrencyFull = (value: number): string => {
+    return new Intl.NumberFormat('pt-AO', {
+      style: 'currency',
+      currency: 'AOA',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
   };
 
   const getStatusColor = (status: string) => {
@@ -104,6 +165,11 @@ export default function ClientPortalHome() {
       PAGO: 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50 backdrop-blur-sm shadow-sm',
       PARCIALMENTE_PAGO: 'bg-amber-500/10 text-amber-700 border-amber-300/50 backdrop-blur-sm shadow-sm',
       VENCIDO: 'bg-rose-500/10 text-rose-700 border-rose-300/50 backdrop-blur-sm shadow-sm',
+      Ativo: 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50 backdrop-blur-sm shadow-sm',
+      Pendente: 'bg-amber-500/10 text-amber-700 border-amber-300/50 backdrop-blur-sm shadow-sm',
+      Suspenso: 'bg-rose-500/10 text-rose-700 border-rose-300/50 backdrop-blur-sm shadow-sm',
+      Cancelado: 'bg-gray-500/10 text-gray-700 border-gray-300/50 backdrop-blur-sm shadow-sm',
+      Rascunho: 'bg-blue-500/10 text-blue-700 border-blue-300/50 backdrop-blur-sm shadow-sm',
     };
     return colors[status] || 'bg-gray-500/10 text-gray-700 border-gray-300/50 backdrop-blur-sm shadow-sm';
   };
@@ -117,6 +183,11 @@ export default function ClientPortalHome() {
       PAGO: <CheckCircle className="w-3.5 h-3.5" />,
       PARCIALMENTE_PAGO: <AlertCircle className="w-3.5 h-3.5" />,
       VENCIDO: <XCircle className="w-3.5 h-3.5" />,
+      Ativo: <CheckCircle className="w-3.5 h-3.5" />,
+      Pendente: <AlertCircle className="w-3.5 h-3.5" />,
+      Suspenso: <XCircle className="w-3.5 h-3.5" />,
+      Cancelado: <XCircle className="w-3.5 h-3.5" />,
+      Rascunho: <Clock className="w-3.5 h-3.5" />,
     };
     return icons[status] || <Clock className="w-3.5 h-3.5" />;
   };
@@ -170,12 +241,14 @@ export default function ClientPortalHome() {
       </div>
     );
   };
+
   function handleReserva(data: any) {
     console.log(data);
   }
+
   // ✅ Renderizar informações de caução
   const renderCaucaoInfo = (reserva: ReservaCompleta) => {
-    const caucao = reserva.caucoes?.[0]; // Pegar primeira caução
+    const caucao = reserva.caucoes?.[0];
     if (!caucao) return null;
 
     return (
@@ -197,6 +270,28 @@ export default function ClientPortalHome() {
     );
   };
 
+  // ✅ Adaptar render para desporto
+  const renderDesportoItem = (desporto: any) => {
+    const dataFormatada = new Date(desporto.dataInicio).toLocaleDateString('pt-PT');
+    const horaInicio = desporto.horarioInicio;
+    const responsavel = desporto.nomeResponsavel;
+    const status = desporto.status;
+
+    return (
+      <div className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
+        <div className="flex justify-between items-start mb-2">
+          <p className="font-medium text-gray-900">{desporto.nomeEquipe || desporto.tipoAtividade}</p>
+          <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(status)}`}>
+            {getStatusIcon(status)}
+            <span className="ml-1">{status}</span>
+          </Badge>
+        </div>
+        <p className="text-sm text-gray-600">{dataFormatada} às {horaInicio} - {responsavel}</p>
+      </div>
+    );
+  };
+
+  // ✅ Funções de modal
   const openModal = (type: string, item: any) => {
     setShowModal({ type, item });
   };
@@ -206,32 +301,41 @@ export default function ClientPortalHome() {
   };
 
   // ✅ Renderizar estado de carregamento
-  if (loading) {
+  if (loading || loadingDesportoFuturos || loadingDesportoCompletos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Carregando suas reservas...</p>
+          <p className="text-gray-600 font-medium">Carregando suas reservas e atividades...</p>
         </div>
       </div>
     );
   }
 
   // ✅ Renderizar erro
-  if (error) {
+  if (error || errorDesportoFuturos || errorDesportoCompletos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-rose-200 bg-white">
           <CardContent className="p-6 text-center">
             <XCircle className="w-12 h-12 text-rose-600 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-900 mb-2">Erro ao Carregar Dados</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <p className="text-gray-600 mb-4">
+              {typeof error === 'string' ? error :
+                errorDesportoFuturos ? 'Erro ao carregar desportos futuros' :
+                  errorDesportoCompletos ? 'Erro ao carregar desportos completos' :
+                    'Erro desconhecido'}
+            </p>
             <Button
               onClick={() => {
                 clearError();
                 if (numeroCliente) {
                   getClienteCompletoPopulate(numeroCliente);
                   getClienteComReservasFuturas(numeroCliente);
+                }
+                if (email) {
+                  fetchDesportosFuturos(email);
+                  fetchDesportosCompletos(email);
                 }
               }}
               className="bg-purple-600 hover:bg-purple-700 text-white"
@@ -246,7 +350,7 @@ export default function ClientPortalHome() {
 
   return (
     <div className="min-h-screen bg-cyan-50 text-gray-900">
-      {/* Header - Padronizado com landing page */}
+      {/* Header */}
       <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm shadow-sm z-50 border-b border-purple-200/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -297,12 +401,14 @@ export default function ClientPortalHome() {
             Olá, {clientName.split(' ')[0]}!
           </h2>
           <p className="text-lg text-gray-600">
-            Acompanhe suas reservas de espaços, atividades desportivas e ginásio de forma independente, com detalhes de pagamentos e caução.
+            Acompanhe suas reservas de espaços e atividades desportivas de forma independente, com detalhes de pagamentos e caução.
           </p>
         </div>
 
-        {/* Stats Cards - Dados Dinâmicos */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {/* Stats Cards - Desporto & Reservas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+
+          {/* Reservas Ativas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -311,14 +417,21 @@ export default function ClientPortalHome() {
                 </div>
                 <TrendingUp className="w-5 h-5 text-emerald-500" />
               </div>
+
               <p className="text-sm text-gray-600 mb-1 font-medium">Reservas Ativas</p>
-              <p className="text-4xl font-bold text-gray-900">{stats.reservasAtivas}</p>
+              <p className="text-4xl font-bold text-gray-900">
+                {reservaEstatistica?.reservaAtiva || stats.reservasAtivas}
+              </p>
+
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-purple-600 font-medium">↗ Gerenciar reservas</p>
+                <p className="text-xs text-purple-600 font-medium">
+                  ↗ Ver todas as reservas
+                </p>
               </div>
             </CardContent>
           </Card>
 
+          {/* Modalidades Desportivas Ativas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-emerald-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -327,34 +440,141 @@ export default function ClientPortalHome() {
                 </div>
                 <Activity className="w-5 h-5 text-emerald-500" />
               </div>
-              <p className="text-sm text-gray-600 mb-1 font-medium">Horas no Ginásio</p>
-              <p className="text-4xl font-bold text-gray-900">{stats.horasGinasio}<span className="text-2xl text-gray-500">h</span></p>
+
+              <p className="text-sm text-gray-600 mb-1 font-medium">
+                Desportos Ativos
+              </p>
+              <p className="text-4xl font-bold text-gray-900">
+                {desportoEstatistica?.desportosAtivos || '0'}
+              </p>
+
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-emerald-600 font-medium">60% da meta mensal</p>
+                <p className="text-xs text-emerald-600 font-medium">
+                  {desportoEstatistica?.camposNome?.slice(0, 2).join(' • ') || 'Sem campos'}
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-cyan-100 hover:-translate-y-1">
+          {/* Total Investido em Reservas */}
+          <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-amber-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Clock className="w-7 h-7 text-white" />
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <TrendingUp className="w-7 h-7 text-white" />
                 </div>
                 <Award className="w-5 h-5 text-amber-500" />
               </div>
-              <p className="text-sm text-gray-600 mb-1 font-medium">Próxima Reserva</p>
-              <p className="text-xl font-bold text-gray-900">{stats.proximaReserva}</p>
+
+              <p className="text-sm text-gray-600 mb-1 font-medium">
+                Total Reservas
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {reservaEstatistica?.totalReserva
+                  ? `${(reservaEstatistica.totalReserva / 1000).toFixed(0)}K`
+                  : '0'} AOA
+              </p>
+
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-xs text-cyan-600 font-medium">
-                  {reservasFuturasNormalizadas.length > 0 ? 'Em breve' : 'Nenhuma reserva'}
+                <p className="text-xs text-amber-600 font-medium">
+                  {reservaEstatistica?.reservaAtiva
+                    ? `${reservaEstatistica.reservaAtiva} reservas ativas`
+                    : 'Sem reservas'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Total Investido em Desporto */}
+          <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-blue-100 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <FileText className="w-7 h-7 text-white" />
+                </div>
+                <Award className="w-5 h-5 text-blue-500" />
+              </div>
+
+              <p className="text-sm text-gray-600 mb-1 font-medium">
+                Total Desporto
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {desportoEstatistica?.totalDesporto
+                  ? `${(desportoEstatistica.totalDesporto / 1000).toFixed(0)}K`
+                  : '0'} AOA
+              </p>
+
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-xs text-blue-600 font-medium">
+                  {desportoEstatistica?.desportosAtivos
+                    ? `${desportoEstatistica.desportosAtivos} desportos ativos`
+                    : 'Sem atividades'}
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs Navigation */}
+        {/* Resumo Financeiro */}
+        <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 mb-10">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
+              <TrendingUp className="w-5 h-5 text-indigo-600" />
+              <span>Resumo Financeiro</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-500 mb-1">Total Reservas</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {reservaEstatistica?.totalReserva
+                    ? formatCurrencyFull(reservaEstatistica.totalReserva)
+                    : '0,00 AOA'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {reservaEstatistica?.reservaAtiva || 0} reservas ativas
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-500 mb-1">Total Desporto</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {desportoEstatistica?.totalDesporto
+                    ? formatCurrencyFull(desportoEstatistica.totalDesporto)
+                    : '0,00 AOA'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {desportoEstatistica?.desportosAtivos || 0} atividades ativas
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-500 mb-1">Investimento Total</p>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {formatCurrencyFull(
+                    (reservaEstatistica?.totalReserva || 0) +
+                    (desportoEstatistica?.totalDesporto || 0)
+                  )}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {((reservaEstatistica?.reservaAtiva || 0) +
+                    (desportoEstatistica?.desportosAtivos || 0))} atividades totais
+                </p>
+              </div>
+            </div>
+
+            {/* Se não houver dados */}
+            {(!reservaEstatistica && !desportoEstatistica) && (
+              <div className="text-center py-8">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Carregando estatísticas financeiras...</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tabs Navigation - REMOVIDO GINÁSIO */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex border-b border-gray-200 bg-gray-50">
@@ -362,7 +582,7 @@ export default function ClientPortalHome() {
                 { value: 'overview', label: 'Visão Geral', icon: Activity },
                 { value: 'reservas', label: 'Reservas', icon: Calendar },
                 { value: 'desporto', label: 'Desporto', icon: Dumbbell },
-                { value: 'ginasio', label: 'Ginásio', icon: TrendingUp }
+                // Ginásio removido
               ].map(tab => {
                 const Icon = tab.icon;
                 return (
@@ -397,32 +617,24 @@ export default function ClientPortalHome() {
                         size="lg"
                         className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
                         onClick={() => {
-                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
+                          setShowModal({ type: 'RegistarReserva', item: null })
                         }}
                       >
                         <Plus className="w-4 h-4" />
                         <span>Nova Reserva</span>
                       </Button>
-
-                      <Button
-                        size="lg"
-                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                        onClick={() => {
-                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
-                        }}
+                      <Button 
+                        size="lg" 
+                        className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
                       >
-                        <Plus className="w-4 h-4" />
-                        <span>Nova Reserva</span>
-                      </Button>
-                      <Button size="lg" className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2">
                         <Plus className="w-4 h-4" />
                         <span>Nova Atividade Desportiva</span>
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-6">
-                    {/* Próximas Reservas - DINÂMICO */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Próximas Reservas */}
                     <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-white border border-purple-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
@@ -467,41 +679,14 @@ export default function ClientPortalHome() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {desportoSessions.slice(0, 1).map(session => (
-                            <div key={session.id} className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
-                              <div className="flex justify-between items-start mb-2">
-                                <p className="font-medium text-gray-900">{session.tipo}</p>
-                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(session.status)}`}>
-                                  {getStatusIcon(session.status)}
-                                  <span className="ml-1">{session.status}</span>
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-600">{session.data} às {session.hora} - {session.instrutor}</p>
+                          {desportosFuturos.slice(0, 2).map(desporto => (
+                            <div key={desporto._id}>
+                              {renderDesportoItem(desporto)}
                             </div>
                           ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Histórico Ginásio */}
-                    <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-cyan-50 to-white border border-cyan-200">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
-                          <TrendingUp className="w-5 h-5 text-cyan-600" />
-                          <span>Histórico do Ginásio</span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {gymSessions.slice(0, 1).map(session => (
-                            <div key={session.id} className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
-                              <div className="flex justify-between items-start mb-2">
-                                <p className="font-medium text-gray-900">{session.tipo}</p>
-                                <span className="text-xs text-gray-500">{session.duracao}</span>
-                              </div>
-                              <p className="text-sm text-gray-600">{session.data}</p>
-                            </div>
-                          ))}
+                          {desportosFuturos.length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">Nenhuma atividade desportiva</p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -515,16 +700,16 @@ export default function ClientPortalHome() {
                     <h3 className="text-2xl font-bold text-gray-900">
                       Reservas de Espaços ({reservasNormalizadas.length})
                     </h3>
-                     <Button
-                        size="lg"
-                        className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                        onClick={() => {
-                          setShowModal({ type: 'RegistarReserva', item: null })  // ✅ CORRETO
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Nova Reserva</span>
-                      </Button>
+                    <Button
+                      size="lg"
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+                      onClick={() => {
+                        setShowModal({ type: 'RegistarReserva', item: null })
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Nova Reserva</span>
+                    </Button>
                   </div>
 
                   {reservasNormalizadas.length === 0 ? (
@@ -599,112 +784,74 @@ export default function ClientPortalHome() {
               {activeTab === 'desporto' && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-2xl font-bold text-gray-900">Atividades Desportivas</h3>
-                    <Button size="lg" className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2">
+                    <h3 className="text-2xl font-bold text-gray-900">Atividades Desportivas ({desportosCompletos.length})</h3>
+                    <Button 
+                      size="lg" 
+                      className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+                    >
                       <Plus className="w-4 h-4" />
                       <span>Nova Inscrição</span>
                     </Button>
                   </div>
 
-                  {desportoSessions.map(session => (
-                    <Card key={session.id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-emerald-300">
-                      <CardContent className="p-6 space-y-3">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <CardTitle className="text-xl font-bold text-gray-900 mb-2">{session.tipo}</CardTitle>
-                            <p className="text-sm text-gray-600">{session.data} às {session.hora}</p>
-                            <p className="text-sm text-gray-500">Instrutor: {session.instrutor}</p>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2">
-                            <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(session.status)}`}>
-                              {getStatusIcon(session.status)}
-                              <span className="ml-1">{session.status.toUpperCase()}</span>
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex space-x-3">
-                          <Button
-                            variant="outline"
-                            className="flex-1 px-4 py-2.5 border-2 border-emerald-300 text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors text-sm"
-                            onClick={() => openModal('desporto', session)}
-                          >
-                            Ver Detalhes
-                          </Button>
-                        </div>
+                  {desportosCompletos.length === 0 ? (
+                    <Card className="border-0 shadow-md rounded-xl bg-white border border-gray-200">
+                      <CardContent className="p-12 text-center">
+                        <Dumbbell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma Atividade Desportiva</h3>
+                        <p className="text-gray-600">Você ainda não tem atividades desportivas registradas.</p>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-              )}
-
-              {activeTab === 'ginasio' && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-2xl font-bold text-gray-900">Histórico do Ginásio</h3>
-                    <Button size="lg" className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2">
-                      <Plus className="w-4 h-4" />
-                      <span>Registrar Sessão</span>
-                    </Button>
-                  </div>
-
-                  {gymSessions.map(session => (
-                    <Card key={session.id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-cyan-300">
-                      <CardContent className="p-6">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <CardTitle className="text-xl font-bold text-gray-900 mb-2">{session.tipo}</CardTitle>
-                            <p className="text-sm text-gray-600">{session.data}</p>
+                  ) : (
+                    desportosCompletos.map(desporto => (
+                      <Card key={desporto._id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-emerald-300">
+                        <CardContent className="p-6 space-y-3">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <CardTitle className="text-xl font-bold text-gray-900 mb-2">
+                                {desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}
+                              </CardTitle>
+                              <p className="text-sm text-gray-600">
+                                {new Date(desporto.dataInicio).toLocaleDateString('pt-PT')} às {desporto.horarioInicio} - {desporto.horarioFim}
+                              </p>
+                              <p className="text-sm text-gray-500">Responsável: {desporto.nomeResponsavel}</p>
+                            </div>
+                            <div className="flex flex-col items-end space-y-2">
+                              <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(desporto.status)}`}>
+                                {getStatusIcon(desporto.status)}
+                                <span className="ml-1">{desporto.status}</span>
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-cyan-600">{session.duracao}</p>
-                            <p className="text-xs text-gray-500">duração</p>
+                          <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Total Pagamento</p>
+                              <p className="text-sm font-bold text-gray-900">{desporto.valorPagamento.toLocaleString()} AOA</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Pago</p>
+                              <p className="text-sm font-bold text-emerald-600">{desporto.valorPago?.toLocaleString() || '0'} AOA</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Pendente</p>
+                              <p className="text-sm font-bold text-amber-600">
+                                {((desporto.valorPagamento || 0) - (desporto.valorPago || 0)).toLocaleString()} AOA
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex space-x-3 mt-3">
-                          <Button
-                            variant="outline"
-                            className="flex-1 px-4 py-2.5 border-2 border-cyan-300 text-cyan-700 rounded-lg font-medium hover:bg-cyan-50 transition-colors text-sm"
-                            onClick={() => openModal('ginasio', session)}
-                          >
-                            Ver Detalhes
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {/* Seção de Pagamento do Ginásio */}
-                  <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-200">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg font-bold text-gray-900">Pagamento do Ginásio</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-4">
-                      <p className="text-sm text-gray-600 mb-4">
-                        Taxa anual de ginásio (pagamento único, sem caução). Status: {gymPagamento.pago ? 'Pago' : 'Pendente'}.
-                      </p>
-                      <div className="space-y-2 text-sm text-gray-700">
-                        <p>Total: {gymPagamento.total} AOA</p>
-                        <p>Data do Pagamento: {gymPagamento.dataPagamento}</p>
-                        <p>Descrição: {gymPagamento.descricao}</p>
-                      </div>
-                      <Button variant="outline" className="px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm">
-                        Ver Recibo
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-200">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg font-bold text-gray-900">Meta Mensal</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-4">
-                      <p className="text-sm text-gray-600 mb-4">Você completou 12 de 20 horas este mês</p>
-                      <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="absolute top-0 left-0 h-full w-3/5 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full"></div>
-                      </div>
-                      <p className="text-xs text-gray-500 text-right">60% concluído</p>
-                    </CardContent>
-                  </Card>
+                          <div className="flex space-x-3">
+                            <Button
+                              variant="outline"
+                              className="flex-1 px-4 py-2.5 border-2 border-emerald-300 text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors text-sm"
+                              onClick={() => openModal('desporto', desporto)}
+                            >
+                              Ver Detalhes
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -722,13 +869,6 @@ export default function ClientPortalHome() {
       )}
       {showModal.type === 'desporto' && (
         <ModalDetalheDesporto
-          data={showModal.item}
-          open={true}
-          onClose={closeModal}
-        />
-      )}
-      {showModal.type === 'ginasio' && (
-        <ModalDetalheGinasio
           data={showModal.item}
           open={true}
           onClose={closeModal}

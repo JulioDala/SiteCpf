@@ -4,6 +4,8 @@ import axios, { AxiosInstance } from "axios";
 import Cookies from "js-cookie";
 import { LocalEvento } from "./espaco-store";
 import { TipoEvento } from "./cliente-storage";
+import { fa } from "zod/v4/locales";
+import { string } from "zod";
 
 interface FamilyMember {
   nome: string;
@@ -132,11 +134,25 @@ export interface CreateReservaPayload {
 
 interface BackendReservaState {
   reservas: BackendReserva[];
+  reservaEstatistica: ReservaEstatisticas | null;
+  errorEstatistica:string | null;
+  loadingEstatistica:boolean
   loading: boolean;
   error: string | null;
+  fetchEstatisticaReserva: (idCliente: string) => Promise<void>;
   createReserva: (data: CreateReservaPayload) => Promise<BackendReserva>;
   clearError: () => void;
   reset: () => void;
+}
+export interface ReservaEstatisticas {
+  proximaReserva: ProximaReserva | null;
+  reservaAtiva: number;
+  totalReserva: number;
+}
+
+export interface ProximaReserva {
+  data: string;
+  espaco: string;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3009";
@@ -159,7 +175,7 @@ reservaApi.interceptors.response.use(
     if (error.response?.status === 401) {
       Cookies.remove('auth-token', { path: '/' });
       localStorage.removeItem('auth-storage');
-      
+
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
       }
@@ -170,8 +186,12 @@ reservaApi.interceptors.response.use(
 
 export const useBackendReservaStore = create<BackendReservaState>((set) => ({
   reservas: [],
+  reservaEstatistica: null,
+
   loading: false,
   error: null,
+  loadingEstatistica:false,
+  errorEstatistica: null,
 
   createReserva: async (data) => {
     set({ loading: true, error: null });
@@ -200,16 +220,59 @@ export const useBackendReservaStore = create<BackendReservaState>((set) => ({
       throw error;
     }
   },
+   fetchEstatisticaReserva: async (idCliente: string): Promise<void> => {
+    if (!idCliente || idCliente.trim() === '') {
+      set({ 
+        errorEstatistica: 'ID do cliente não fornecido',
+        loadingEstatistica: false 
+      });
+      return;
+    }
+
+    set({ 
+      loadingEstatistica: true, 
+      errorEstatistica: null 
+    });
+
+    try {
+      const response = await reservaApi.get<ReservaEstatisticas>(
+        `/reservas/estatisticas-cliente/${encodeURIComponent(idCliente)}`
+      );
+
+      const data = response.data;
+
+      set({
+        reservaEstatistica: data,
+        loadingEstatistica: false,
+        errorEstatistica: null
+      });
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Erro ao buscar estatísticas de reserva";
+
+      set({
+        loadingEstatistica: false,
+        errorEstatistica: errorMessage,
+      });
+      throw new Error(errorMessage);
+    }
+  },
 
   clearError: () => {
-    set({ error: null });
+    set({ error: null, errorEstatistica: null });
   },
 
   reset: () => {
     set({
       reservas: [],
+      reservaEstatistica: null,
       loading: false,
+      loadingEstatistica: false,
       error: null,
+      errorEstatistica: null,
     });
   },
 }));
