@@ -50,7 +50,7 @@ export default function CPFLandingPage() {
   ];
 
   const handleLogin = () => {
-    router.push('/auth/login');
+    router.push('/login');
   };
 
   return (
