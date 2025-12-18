@@ -25,9 +25,7 @@ type LoginSchema = z.infer<typeof loginSchema>;
 export default function LoginForm() {
   const { error, loading, login, clearError } = useAuthStore();
   const router = useRouter();
-  const searchParams = useSearchParams();
   
-  const redirectUrl = searchParams.get('redirect') || '/dashboard/home';
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -52,7 +50,7 @@ export default function LoginForm() {
       });
       
       setTimeout(() => {
-        router.push(redirectUrl);
+        router.push('/dashboard/home');
       }, 100);
       
     } catch (err: any) {
@@ -188,14 +186,14 @@ export default function LoginForm() {
                 </Button>
               </form>
 
-              <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+              {/* <div className="mt-6 pt-6 border-t border-gray-200 text-center">
                 <p className="text-sm text-gray-500">
                   Não tem uma conta?{' '}
                   <a href="/auth/registro" className="text-purple-600 hover:text-purple-700 font-semibold">
                     Registre-se
                   </a>
                 </p>
-              </div>
+              </div> */}
             </CardContent>
           </Card>
         </div>
