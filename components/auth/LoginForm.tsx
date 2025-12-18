@@ -25,7 +25,9 @@ type LoginSchema = z.infer<typeof loginSchema>;
 export default function LoginForm() {
   const { error, loading, login, clearError } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
+  const redirectUrl = searchParams.get('redirect') || '/dashboard/home';
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -50,7 +52,7 @@ export default function LoginForm() {
       });
       
       setTimeout(() => {
-        router.push('/dashboard/home');
+        router.push(redirectUrl);
       }, 100);
       
     } catch (err: any) {
