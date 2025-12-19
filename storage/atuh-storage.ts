@@ -100,7 +100,7 @@ export interface AuthStore {
 const COOKIE_OPTIONS = {
   expires: 7,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  sameSite: 'lax' as const, // ✅ Mudado de 'strict' para 'lax' para funcionar com redirects
   path: '/',
 };
 
@@ -112,7 +112,6 @@ export const useAuthStore = create<AuthStore>()(
       error: null,
       isInitialized: false,
 
-      // ✅ SOLUÇÃO: Initialize NÃO salva cookie - apenas sincroniza
       initialize: () => {
         console.log("🔄 Inicializando AuthStore...");
         
@@ -171,10 +170,11 @@ export const useAuthStore = create<AuthStore>()(
           console.log("✅ Cliente:", response.data.cliente.nome);
           console.log("✅ Token recebido");
 
-          // ✅ ÚNICO LUGAR onde salvamos o token no cookie
+          // ✅ Salvar token no cookie ANTES de atualizar o estado
           Cookies.set('auth-token', response.data.accessToken, COOKIE_OPTIONS);
           console.log("✅ Token salvo em cookie");
 
+          // ✅ Atualizar estado
           set({
             userLogin: response.data,
             loading: false,
@@ -333,7 +333,6 @@ export const useAuthStore = create<AuthStore>()(
           console.log("✅ LocalStorage limpo");
 
           console.log("✅ ========== LOGOUT COMPLETO ==========");
-
         }
       },
     }),
@@ -345,7 +344,9 @@ export const useAuthStore = create<AuthStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         console.log("💾 Reidratando estado do localStorage...");
-        state?.initialize();
+        if (state) {
+          state.initialize();
+        }
       },
     }
   )

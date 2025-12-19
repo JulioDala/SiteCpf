@@ -1,4 +1,4 @@
-// app/auth/login/LoginForm.tsx
+// components/auth/LoginForm.tsx
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -46,14 +46,16 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginSchema) => {
     try {
+      console.log("🔐 Iniciando login...");
       await login({ 
         username: data.email, 
         password: data.senha 
       });
       
-      setTimeout(() => {
-        router.push(redirectUrl);
-      }, 100);
+      console.log("✅ Login bem-sucedido, redirecionando para:", redirectUrl);
+      
+      // ✅ Usar window.location.href para garantir redirect após login
+      window.location.href = redirectUrl;
       
     } catch (err: any) {
       console.error("❌ Erro no formulário:", err);
@@ -187,15 +189,6 @@ export default function LoginForm() {
                   )}
                 </Button>
               </form>
-
-              {/* <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-                <p className="text-sm text-gray-500">
-                  Não tem uma conta?{' '}
-                  <a href="/auth/registro" className="text-purple-600 hover:text-purple-700 font-semibold">
-                    Registre-se
-                  </a>
-                </p>
-              </div> */}
             </CardContent>
           </Card>
         </div>
