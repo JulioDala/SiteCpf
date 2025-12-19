@@ -97,10 +97,11 @@ export interface AuthStore {
   clearError: () => void;
 }
 
+// ✅ Configuração de cookies otimizada para produção
 const COOKIE_OPTIONS = {
   expires: 7,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const, // ✅ Mudado de 'strict' para 'lax' para funcionar com redirects
+  secure: false, // ✅ Mudado para false - funciona em HTTP e HTTPS
+  sameSite: 'lax' as const,
   path: '/',
 };
 
@@ -116,35 +117,18 @@ export const useAuthStore = create<AuthStore>()(
         console.log("🔄 Inicializando AuthStore...");
         
         const state = get();
-        const cookieToken = Cookies.get('auth-token');
         
+        // ✅ IMPORTANTE: Não limpar localStorage se não tiver cookie
+        // O cookie pode não existir por problemas de configuração, não significa que o usuário não está autenticado
         console.log("📊 Estado atual:");
         console.log("  - Token no localStorage:", !!state.userLogin?.accessToken);
-        console.log("  - Token no cookie:", !!cookieToken);
+        console.log("  - Cliente:", state.userLogin?.cliente?.nome);
         
-        // ✅ Se tem token no localStorage mas NÃO tem no cookie
-        if (state.userLogin?.accessToken && !cookieToken) {
-          console.log("⚠️ Divergência: Token no localStorage mas sem cookie");
-          console.log("🧹 Limpando localStorage...");
-          
-          set({ userLogin: null });
-          localStorage.removeItem('auth-storage');
-        }
-        
-        // ✅ Se tem cookie mas NÃO tem no localStorage
-        if (!state.userLogin?.accessToken && cookieToken) {
-          console.log("⚠️ Cookie órfão detectado - Removendo");
-          Cookies.remove('auth-token', { path: '/' });
-        }
-        
-        // ✅ Se ambos existem e estão sincronizados
-        if (state.userLogin?.accessToken && cookieToken) {
-          console.log("✅ Sincronização OK - Token presente em ambos");
-        }
-        
-        // ✅ Se nenhum existe
-        if (!state.userLogin?.accessToken && !cookieToken) {
-          console.log("✅ Sem autenticação - Estado limpo");
+        // ✅ Se tiver token válido, manter autenticação
+        if (state.userLogin?.accessToken) {
+          console.log("✅ Token encontrado - Mantendo autenticação");
+        } else {
+          console.log("ℹ️ Sem autenticação");
         }
         
         set({ isInitialized: true });
@@ -170,18 +154,23 @@ export const useAuthStore = create<AuthStore>()(
           console.log("✅ Cliente:", response.data.cliente.nome);
           console.log("✅ Token recebido");
 
-          // ✅ Salvar token no cookie ANTES de atualizar o estado
-          Cookies.set('auth-token', response.data.accessToken, COOKIE_OPTIONS);
-          console.log("✅ Token salvo em cookie");
-
-          // ✅ Atualizar estado
+          // ✅ Atualizar estado PRIMEIRO (localStorage através do persist)
           set({
             userLogin: response.data,
             loading: false,
             error: null,
           });
 
-          console.log("✅ Estado atualizado");
+          console.log("✅ Estado atualizado no localStorage");
+
+          // ✅ Tentar salvar cookie (mas não depender dele)
+          try {
+            Cookies.set('auth-token', response.data.accessToken, COOKIE_OPTIONS);
+            console.log("✅ Token salvo em cookie");
+          } catch (cookieError) {
+            console.warn("⚠️ Não foi possível salvar cookie (não é crítico):", cookieError);
+          }
+
           console.log("✅ Login completo!");
         } catch (error: any) {
           console.error("❌ ========== ERRO NO LOGIN ==========");
@@ -219,12 +208,17 @@ export const useAuthStore = create<AuthStore>()(
 
           console.log("✅ Token renovado");
 
-          Cookies.set('auth-token', response.data.accessToken, COOKIE_OPTIONS);
-
           set({
             userLogin: response.data,
             error: null,
           });
+
+          // Tentar atualizar cookie (opcional)
+          try {
+            Cookies.set('auth-token', response.data.accessToken, COOKIE_OPTIONS);
+          } catch (e) {
+            console.warn("⚠️ Cookie não atualizado");
+          }
         } catch (error: any) {
           console.error("❌ Erro ao renovar token");
 
@@ -317,18 +311,22 @@ export const useAuthStore = create<AuthStore>()(
         } finally {
           console.log("🧹 Limpando dados locais...");
 
-          // ✅ Remover cookie
-          Cookies.remove('auth-token', { path: '/' });
-          console.log("✅ Cookie removido");
+          // Tentar remover cookie
+          try {
+            Cookies.remove('auth-token', { path: '/' });
+            console.log("✅ Cookie removido");
+          } catch (e) {
+            console.warn("⚠️ Cookie não removido");
+          }
 
-          // ✅ Limpar estado
+          // Limpar estado
           set({
             userLogin: null,
             loading: false,
             error: null,
           });
 
-          // ✅ Limpar localStorage
+          // Limpar localStorage
           localStorage.removeItem('auth-storage');
           console.log("✅ LocalStorage limpo");
 
