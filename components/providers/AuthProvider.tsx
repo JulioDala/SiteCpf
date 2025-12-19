@@ -29,8 +29,7 @@ export function AuthProvider({ children, requireAuth = false }: AuthProviderProp
     // ROTA PROTEGIDA: Precisa estar autenticado
     if (requireAuth && !isAuthenticated) {
       console.log('❌ Acesso negado - Redirecionando para login');
-      const loginUrl = `/login?redirect=${encodeURIComponent(pathname)}`;
-      router.replace(loginUrl);
+      router.replace('/login');
       return;
     }
 

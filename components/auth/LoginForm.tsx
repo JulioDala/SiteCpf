@@ -1,7 +1,7 @@
 // components/auth/LoginForm.tsx
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,9 +25,6 @@ type LoginSchema = z.infer<typeof loginSchema>;
 export default function LoginForm() {
   const { error, loading, login, clearError } = useAuthStore();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  
-  const redirectUrl = searchParams.get('redirect') || '/dashboard/home';
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -52,10 +49,10 @@ export default function LoginForm() {
         password: data.senha 
       });
       
-      console.log("✅ Login bem-sucedido, redirecionando para:", redirectUrl);
+      console.log("✅ Login bem-sucedido, redirecionando para dashboard...");
       
-      // ✅ Usar window.location.href para garantir redirect após login
-      window.location.href = redirectUrl;
+      // Redireciona sempre para dashboard/home
+      window.location.href = '/dashboard/home';
       
     } catch (err: any) {
       console.error("❌ Erro no formulário:", err);
