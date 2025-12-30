@@ -149,7 +149,7 @@ export default function LoginFormContent() { // Nome exportado para import no pa
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Esqueceu a senha?{' '}
-              <a href="/recuperar-senha" className="text-purple-600 hover:text-purple-700 font-semibold underline">
+              <a href="recuperar-senha" className="text-purple-600 hover:text-purple-700 font-semibold underline">
                 Recuperar
               </a>
             </p>
@@ -158,7 +158,7 @@ export default function LoginFormContent() { // Nome exportado para import no pa
           <div className="mt-6 pt-6 border-t border-gray-200 text-center">
             <p className="text-sm text-gray-500">
               Não tem uma conta?{' '}
-              <a href="/registro" className="text-purple-600 hover:text-purple-700 font-semibold">
+              <a href="registro" className="text-purple-600 hover:text-purple-700 font-semibold">
                 Registre-se
               </a>
             </p>

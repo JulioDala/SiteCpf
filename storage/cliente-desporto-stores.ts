@@ -88,9 +88,9 @@ export interface IDesportoRetorno {
   diasSemana: string[];
   horarioInicio: string;
   horarioFim: string;
-  
+
   // Campos populados (agora são objetos)
-  tipoAtividade: TipoAtividadePopulado ;
+  tipoAtividade: TipoAtividadePopulado;
   corIdentificacao: string;
   valorPagamento: number;
   modalidadePagamento: string;
@@ -209,7 +209,14 @@ interface IUseDesportoStore {
   errorCompletos: boolean;
   loadingCompletos: boolean;
 
+  desportoEspecifico: IDesportoRetorno | null;
+  loadingEspecifico: boolean;
+  errorEspecifico: string | null;
+
+  fetchDesportoEspecifico: (email: string, id: string) => Promise<IDesportoRetorno[]>;
+
   createDesporto: (data: ICreateDesporto) => Promise<IDesportoRetorno>;
+  loading: boolean;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3009';
@@ -259,7 +266,75 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
   desportosCompletos: [],
   errorCompletos: false,
   loadingCompletos: false,
+  loading: false,
+  desportoEspecifico: null,
+  loadingEspecifico: false,
+  errorEspecifico: null,
 
+  // ✅ MÉTODO para buscar desporto específico
+  fetchDesportoEspecifico: async (email: string, id: string) => {
+    console.log("🔵 ========== BUSCANDO DESPORTO ESPECÍFICO ==========");
+    console.log("🔵 Email:", email);
+    console.log("🔵 ID:", id);
+
+    set({
+      loadingEspecifico: true,
+      errorEspecifico: null,
+      desportoEspecifico: null
+    });
+
+    try {
+      const response = await clienteApi.get<IDesportoRetorno[]>(
+        `/desporto-portal/getDesportoCompletoPopulateEspecifico`,
+        {
+          params: { email, id }
+        }
+      );
+
+      const data = response.data;
+
+      console.log("✅ ========== DESPORTO ESPECÍFICO CARREGADO ==========");
+      console.log("✅ Dados retornados:", data);
+
+      // O método retorna um array, então pegamos o primeiro elemento se existir
+      const desportoEncontrado = data && data.length > 0 ? data[0] : null;
+
+      if (desportoEncontrado) {
+        console.log("✅ Desporto encontrado:", desportoEncontrado.nomeEquipe);
+        set({
+          desportoEspecifico: desportoEncontrado,
+          loadingEspecifico: false,
+          errorEspecifico: null
+        });
+      } else {
+        console.log("❌ Nenhum desporto encontrado");
+        set({
+          loadingEspecifico: false,
+          errorEspecifico: 'Desporto não encontrado'
+        });
+      }
+
+      return data;
+
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR DESPORTO ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        `Erro ao buscar desporto ${id} para o email ${email}`;
+
+      set({
+        loadingEspecifico: false,
+        errorEspecifico: errorMessage,
+        desportoEspecifico: null
+      });
+
+      throw error;
+    }
+  },
   // Método para buscar estatísticas
   fetchDesportosEstatistica: async (email: string) => {
     set({ loadingEstatistica: true, errorEstatistica: false });
@@ -332,6 +407,7 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
   // Método para criar desporto
   createDesporto: async (data: ICreateDesporto) => {
     try {
+      set({ loading: true });
       const response = await clienteApi.post('/desporto-portal/create-desporto-portal', data);
       const created: IDesportoRetorno = response.data;
 
@@ -340,11 +416,13 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
         // Aguarda um pouco antes de atualizar para garantir que o backend processou
         setTimeout(() => {
           get().fetchDesportosEstatistica(data.email!);
+          set({ loading: false });
         }, 1000);
       }
 
       return created;
     } catch (error: any) {
+      set({ loading: false });
       console.error("Erro ao criar desporto:", error);
       throw new Error(
         error.response?.data?.message ||

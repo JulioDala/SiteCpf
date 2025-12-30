@@ -1,97 +1,261 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useClienteReservasStore } from '@/storage/cliente-storage';
+import Swal from 'sweetalert2';
 
-// Enums
+// Enums atualizados para corresponder ao backend
 const ClienteTipo = {
-  SONANGOL: 'Sonangol',
-  EXTERNO: 'Externo',
+  EXTERNO: 'externo',
+  SONANGOL: 'sonangol',
 } as const;
 
-const ClienteStatus = {
-  ATIVO: 'ATIVO',
-  INATIVO: 'INATIVO',
-} as const;
-
-// Schema de validação Zod
+// Schema de validação Zod ÚNICO
 const clienteSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
-  tipo: z.enum([ClienteTipo.SONANGOL, ClienteTipo.EXTERNO]),
-  telefone: z.string().min(9, 'Telefone inválido'),
-  whatsapp: z.string().optional(),
+  tipo: z.enum([ClienteTipo.EXTERNO, ClienteTipo.SONANGOL]),
+  telefone: z.string()
+    .min(9, 'Telefone deve ter 9 dígitos')
+    .max(9, 'Telefone deve ter 9 dígitos')
+    .regex(/^\d+$/, 'Telefone deve conter apenas números'),
+  whatsapp: z.string()
+    .optional()
+    .refine((val) => !val || (val.length === 9 && /^\d+$/.test(val)), {
+      message: 'WhatsApp deve ter 9 dígitos se fornecido',
+    }),
   email: z.string().email('E-mail inválido'),
   numeroCliente: z.string().min(1, 'Número do cliente é obrigatório'),
-  biPassaporte: z.string().min(1, 'BI/Passaporte é obrigatório'),
+  biPassaporte: z.string().optional(),
   morada: z.string().optional(),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-  confirmarSenha: z.string(),
-}).refine((data) => data.senha === data.confirmarSenha, {
-  message: 'As senhas não coincidem',
-  path: ['confirmarSenha'],
+  password: z.string().min(6, 'Senha do portal deve ter pelo menos 6 caracteres'),
 });
 
 type ClienteFormData = z.infer<typeof clienteSchema>;
 
+// Interface que corresponde EXATAMENTE ao CreateClienteDto do backend
+interface CreateClienteDto {
+  nome: string;
+  tipo: 'externo' | 'sonangol';
+  telefone: string;
+  whatsapp?: string;
+  email: string;
+  numeroCliente: string;
+  biPassaporte?: string;
+  morada?: string;
+  // NÃO incluir: _id, status, webCredencial, createdAt, updatedAt
+}
+
 export default function CadastroClienteForm() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof ClienteFormData, string>>>({});
+  const [isLoadingNumeracao, setIsLoadingNumeracao] = useState(false);
+  const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
   
-  const [formData, setFormData] = useState<ClienteFormData>({
-    nome: '',
-    tipo: ClienteTipo.SONANGOL,
-    telefone: '',
-    whatsapp: '',
-    email: '',
-    numeroCliente: '',
-    biPassaporte: '',
-    morada: '',
-    senha: '',
-    confirmarSenha: '',
+  const form = useForm<ClienteFormData>({
+    resolver: zodResolver(clienteSchema),
+    defaultValues: {
+      nome: '',
+      tipo: ClienteTipo.EXTERNO,
+      telefone: '',
+      whatsapp: '',
+      email: '',
+      numeroCliente: '',
+      biPassaporte: '',
+      morada: '',
+      password: '',
+    },
   });
 
-  const handleChange = (field: keyof ClienteFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
-    }
-  };
+  const { createPortal, findNumeracao, loading: storeLoading, error: storeError, clearError } = useClienteReservasStore();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErrors({});
-
+  const fetchNumeracao = async (showSuccessAlert = false) => {
     try {
-      // Validação com Zod
-      clienteSchema.parse(formData);
-
-      // MOCK: Simula cadastro com dados falsos
-      // const res = await clienteAPI.cadastrar(formData);
-      setTimeout(() => {
-        alert('Cliente cadastrado com sucesso!');
-        router.push('/login');
-        setLoading(false);
-      }, 1500);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: Partial<Record<keyof ClienteFormData, string>> = {};
-        (error as any).errors.forEach((err: any) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as keyof ClienteFormData] = err.message;
-          }
-        });
-        setErrors(fieldErrors);
+      setIsLoadingNumeracao(true);
+      clearError();
+      
+      if (!hasFetchedInitial) {
+        form.setValue('numeroCliente', 'Gerando número...', { shouldValidate: false });
       }
-      setLoading(false);
+
+      const numero = await findNumeracao();
+      
+      if (numero) {
+        form.setValue('numeroCliente', numero, { shouldValidate: true });
+        
+        if (showSuccessAlert) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Número gerado!',
+            text: `Número do cliente: ${numero}`,
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        }
+      }
+      
+      if (!hasFetchedInitial) {
+        setHasFetchedInitial(true);
+      }
+    } catch (error: any) {
+      console.error('Erro ao buscar numeração:', error);
+      
+      form.setValue('numeroCliente', '', { shouldValidate: true });
+      
+      if (hasFetchedInitial) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro ao buscar numeração',
+          text: error.message || 'Não foi possível gerar o número automático',
+          confirmButtonText: 'OK',
+        });
+      }
+    } finally {
+      setIsLoadingNumeracao(false);
     }
   };
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const initNumeracao = async () => {
+      if (mounted && !hasFetchedInitial) {
+        await fetchNumeracao(false);
+      }
+    };
+    
+    initNumeracao();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (storeError && hasFetchedInitial) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro na operação',
+        text: storeError,
+        confirmButtonText: 'OK',
+      }).then(() => {
+        clearError();
+      });
+    }
+  }, [storeError, clearError, hasFetchedInitial]);
+
+  const onSubmit = async (data: ClienteFormData) => {
+    try {
+      // ✅ CORRIGIDO: Criar objeto que corresponde EXATAMENTE ao DTO do backend
+      const clienteData: CreateClienteDto = {
+        // ❌ NÃO incluir: _id, status, webCredencial, createdAt, updatedAt
+        nome: data.nome,
+        tipo: data.tipo,
+        telefone: data.telefone,
+        whatsapp: data.whatsapp || undefined, // Enviar undefined se vazio
+        email: data.email,
+        numeroCliente: data.numeroCliente,
+        biPassaporte: data.biPassaporte || undefined,
+        morada: data.morada || undefined,
+      };
+
+      console.log('✅ Dados enviados (correspondem ao DTO):', clienteData);
+
+      const swalInstance = Swal.fire({
+        title: 'Criando portal...',
+        text: 'Por favor, aguarde',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // ❌ IMPORTANTE: Atualize a store para aceitar CreateClienteDto em vez de ClienteBase
+      const resultado = await createPortal(clienteData, data.password);
+
+      await swalInstance.close();
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Portal criado com sucesso!',
+        html: `
+          <div class="text-left">
+            <p><strong>Cliente:</strong> ${resultado.nome}</p>
+            <p><strong>Número:</strong> ${resultado.numeroCliente}</p>
+            <p><strong>Email:</strong> ${resultado.email}</p>
+            <p><strong>Status:</strong> ${resultado.status}</p>
+            <p class="mt-4 text-sm text-gray-600">O cliente pode agora acessar o portal com suas credenciais.</p>
+          </div>
+        `,
+        confirmButtonText: 'Continuar',
+        showCancelButton: true,
+        cancelButtonText: 'Criar outro',
+        allowOutsideClick: false,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          router.push('/dashboard/clientes');
+        } else {
+          form.reset({
+            nome: '',
+            tipo: ClienteTipo.EXTERNO,
+            telefone: '',
+            whatsapp: '',
+            email: '',
+            numeroCliente: '',
+            biPassaporte: '',
+            morada: '',
+            password: '',
+          });
+          fetchNumeracao(false);
+        }
+      });
+
+    } catch (error: any) {
+      console.error('Erro ao criar portal:', error);
+      
+      Swal.close();
+      
+      if (error?.name !== 'ZodError') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro ao criar portal',
+          text: error.message || 'Ocorreu um erro ao criar o portal do cliente',
+          confirmButtonText: 'OK',
+          allowOutsideClick: false,
+        });
+      }
+    }
+  };
+
+  const handleRegenerateNumeracao = async () => {
+    const result = await Swal.fire({
+      title: 'Gerar novo número?',
+      text: 'Isso irá substituir o número atual do cliente',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, gerar novo',
+      cancelButtonText: 'Manter atual',
+      allowOutsideClick: false,
+    });
+
+    if (result.isConfirmed) {
+      await fetchNumeracao(true);
+    }
+  };
+
+  const numeroClienteValue = form.watch('numeroCliente');
+  const isNumeroClienteValid = numeroClienteValue && 
+                             numeroClienteValue !== '' && 
+                             numeroClienteValue !== 'Gerando número...' &&
+                             numeroClienteValue !== 'Buscando número disponível...';
 
   return (
     <div className="min-h-screen bg-cyan-50 text-gray-900 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8">
@@ -103,160 +267,275 @@ export default function CadastroClienteForm() {
             </div>
           </div>
           <CardTitle className="text-3xl font-bold text-center text-gray-900">Cadastro de Cliente</CardTitle>
-          <CardDescription className="text-center text-gray-600">Preencha os dados abaixo para criar sua conta.</CardDescription>
+          <CardDescription className="text-center text-gray-600">
+            Crie um portal de acesso para o cliente. A numeração será gerada automaticamente.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Nome */}
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="nome" className="text-gray-700 font-medium">Nome Completo *</Label>
-                <Input 
-                  id="nome" 
-                  type="text" 
-                  placeholder="João da Silva" 
-                  value={formData.nome} 
-                  onChange={(e) => handleChange('nome', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.nome ? 'border-red-500' : ''}`}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                <FormField
+                  control={form.control}
+                  name="nome"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Nome Completo *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="João da Silva" 
+                          {...field} 
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                {errors.nome && <p className="text-red-500 text-sm">{errors.nome}</p>}
+
+                <FormField
+                  control={form.control}
+                  name="tipo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Cliente *</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                        disabled={storeLoading || isLoadingNumeracao}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={ClienteTipo.EXTERNO}>Externo</SelectItem>
+                          <SelectItem value={ClienteTipo.SONANGOL}>Sonangol</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="numeroCliente"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex justify-between items-center">
+                        <FormLabel>Número do Cliente *</FormLabel>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRegenerateNumeracao}
+                          disabled={storeLoading || isLoadingNumeracao}
+                          className="text-xs text-purple-600 hover:text-purple-700"
+                        >
+                          {isLoadingNumeracao ? (
+                            <>
+                              <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600 mr-1"></span>
+                              Gerando...
+                            </>
+                          ) : (
+                            '↻ Gerar novo'
+                          )}
+                        </Button>
+                      </div>
+                      <FormControl>
+                        <div className="relative">
+                          <Input 
+                            placeholder="Número será gerado automaticamente" 
+                            {...field} 
+                            disabled={storeLoading || isLoadingNumeracao}
+                            className={isLoadingNumeracao ? "italic text-gray-500" : ""}
+                            onChange={(e) => {
+                              if (!isLoadingNumeracao) {
+                                field.onChange(e.target.value);
+                              }
+                            }}
+                          />
+                          {isLoadingNumeracao && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                            </div>
+                          )}
+                        </div>
+                      </FormControl>
+                      <p className="text-xs text-gray-500">
+                        {isLoadingNumeracao 
+                          ? 'Aguarde, gerando número...' 
+                          : 'Número gerado automaticamente. Clique em "Gerar novo" para regenerar.'}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="biPassaporte"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>BI/Passaporte</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="000000000LA000" 
+                          {...field} 
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-mail *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="email"
+                          placeholder="cliente@email.com" 
+                          {...field} 
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="telefone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefone *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="900000000 (9 dígitos)" 
+                          {...field} 
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ''))}
+                          maxLength={9}
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="whatsapp"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>WhatsApp</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="900000000 (9 dígitos)" 
+                          {...field} 
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ''))}
+                          maxLength={9}
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-gray-500">
+                        Opcional. Deixe vazio para usar o mesmo número do telefone.
+                      </p>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="morada"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Morada</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Rua, Bairro, Município" 
+                          {...field} 
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Senha do Portal *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="password"
+                          placeholder="Senha para criar o portal (mínimo 6 caracteres)" 
+                          {...field} 
+                          disabled={storeLoading || isLoadingNumeracao}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-gray-500">
+                        Esta senha será usada apenas para criar o portal. O cliente receberá credenciais separadas.
+                      </p>
+                    </FormItem>
+                  )}
+                />
               </div>
 
-              {/* Tipo */}
-              <div className="space-y-2">
-                <Label htmlFor="tipo" className="text-gray-700 font-medium">Tipo de Cliente *</Label>
-                <Select value={formData.tipo} onValueChange={(value: any) => handleChange('tipo', value)}>
-                  <SelectTrigger className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.tipo ? 'border-red-500' : ''}`}>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ClienteTipo.SONANGOL}>Pessoa Física</SelectItem>
-                    <SelectItem value={ClienteTipo.EXTERNO}>Pessoa Jurídica</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.tipo && <p className="text-red-500 text-sm">{errors.tipo}</p>}
+              <div className="flex gap-3 mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => router.back()}
+                  disabled={storeLoading || isLoadingNumeracao}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold" 
+                  disabled={storeLoading || isLoadingNumeracao || !isNumeroClienteValid}
+                >
+                  {storeLoading ? (
+                    <>
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                      Criando portal...
+                    </>
+                  ) : 'Criar Portal do Cliente'}
+                </Button>
               </div>
+            </form>
+          </Form>
 
-              {/* Número do Cliente */}
-              <div className="space-y-2">
-                <Label htmlFor="numeroCliente" className="text-gray-700 font-medium">Número do Cliente *</Label>
-                <Input 
-                  id="numeroCliente" 
-                  type="text" 
-                  placeholder="ex: CLI-001" 
-                  value={formData.numeroCliente} 
-                  onChange={(e) => handleChange('numeroCliente', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.numeroCliente ? 'border-red-500' : ''}`}
-                />
-                {errors.numeroCliente && <p className="text-red-500 text-sm">{errors.numeroCliente}</p>}
-              </div>
-
-              {/* BI/Passaporte */}
-              <div className="space-y-2">
-                <Label htmlFor="biPassaporte" className="text-gray-700 font-medium">BI/Passaporte *</Label>
-                <Input 
-                  id="biPassaporte" 
-                  type="text" 
-                  placeholder="000000000LA000" 
-                  value={formData.biPassaporte} 
-                  onChange={(e) => handleChange('biPassaporte', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.biPassaporte ? 'border-red-500' : ''}`}
-                />
-                {errors.biPassaporte && <p className="text-red-500 text-sm">{errors.biPassaporte}</p>}
-              </div>
-
-              {/* E-mail */}
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700 font-medium">E-mail *</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="cliente@email.com" 
-                  value={formData.email} 
-                  onChange={(e) => handleChange('email', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.email ? 'border-red-500' : ''}`}
-                />
-                {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
-              </div>
-
-              {/* Telefone */}
-              <div className="space-y-2">
-                <Label htmlFor="telefone" className="text-gray-700 font-medium">Telefone *</Label>
-                <Input 
-                  id="telefone" 
-                  type="tel" 
-                  placeholder="+244 900 000 000" 
-                  value={formData.telefone} 
-                  onChange={(e) => handleChange('telefone', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.telefone ? 'border-red-500' : ''}`}
-                />
-                {errors.telefone && <p className="text-red-500 text-sm">{errors.telefone}</p>}
-              </div>
-
-              {/* WhatsApp */}
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp" className="text-gray-700 font-medium">WhatsApp</Label>
-                <Input 
-                  id="whatsapp" 
-                  type="tel" 
-                  placeholder="+244 900 000 000" 
-                  value={formData.whatsapp} 
-                  onChange={(e) => handleChange('whatsapp', e.target.value)} 
-                  className="border-gray-300 focus:border-purple-600 focus:ring-purple-600"
-                />
-              </div>
-
-              {/* Morada */}
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="morada" className="text-gray-700 font-medium">Morada</Label>
-                <Input 
-                  id="morada" 
-                  type="text" 
-                  placeholder="Rua, Bairro, Município" 
-                  value={formData.morada} 
-                  onChange={(e) => handleChange('morada', e.target.value)} 
-                  className="border-gray-300 focus:border-purple-600 focus:ring-purple-600"
-                />
-              </div>
-
-              {/* Senha */}
-              <div className="space-y-2">
-                <Label htmlFor="senha" className="text-gray-700 font-medium">Senha *</Label>
-                <Input 
-                  id="senha" 
-                  type="password" 
-                  placeholder="Mínimo 6 caracteres" 
-                  value={formData.senha} 
-                  onChange={(e) => handleChange('senha', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.senha ? 'border-red-500' : ''}`}
-                />
-                {errors.senha && <p className="text-red-500 text-sm">{errors.senha}</p>}
-              </div>
-
-              {/* Confirmar Senha */}
-              <div className="space-y-2">
-                <Label htmlFor="confirmarSenha" className="text-gray-700 font-medium">Confirmar Senha *</Label>
-                <Input 
-                  id="confirmarSenha" 
-                  type="password" 
-                  placeholder="Repita a senha" 
-                  value={formData.confirmarSenha} 
-                  onChange={(e) => handleChange('confirmarSenha', e.target.value)} 
-                  className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${errors.confirmarSenha ? 'border-red-500' : ''}`}
-                />
-                {errors.confirmarSenha && <p className="text-red-500 text-sm">{errors.confirmarSenha}</p>}
-              </div>
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Informações importantes:</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• O número do cliente é gerado automaticamente pelo sistema</li>
+                <li>• Após criar o portal, o cliente receberá credenciais de acesso</li>
+                <li>• A senha do portal é diferente das credenciais do cliente</li>
+                <li>• Todos os campos com * são obrigatórios</li>
+                {isLoadingNumeracao && (
+                  <li className="text-amber-700 font-semibold">⏳ Aguarde, gerando número do cliente...</li>
+                )}
+              </ul>
             </div>
-
-            <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold mt-6" disabled={loading}>
-              {loading ? 'Cadastrando...' : 'Criar Conta'}
-            </Button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-500">
-              Já tem uma conta? <a href="/auth/login" className="text-purple-600 hover:text-purple-700 font-semibold">Faça login</a>
-            </p>
           </div>
         </CardContent>
       </Card>

@@ -13,18 +13,19 @@ export interface WebCredencial {
  */
 
 
+// Atualize a interface ClienteBase assim:
 export interface ClienteBase {
-  _id: string;
+  _id?: string;
   nome: string;
-  tipo: 'PESSOA_FISICA' | 'PESSOA_JURIDICA';
+  tipo: 'externo' | 'sonangol';
   telefone: string;
   whatsapp: string;
   email: string;
   numeroCliente: string;
-  status: 'ATIVO' | 'INATIVO' | 'BLOQUEADO';
-  biPassaporte: string;
-  morada: string;
-  webCredencial: WebCredencial;
+  status?: 'Ativo' | 'Inativo'; // ✅ Corrigido: 'Ativo' com A maiúsculo
+  biPassaporte?: string;
+  morada?: string;
+  webCredencial?: WebCredencial;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -116,37 +117,37 @@ export interface ReservaCompleta {
   data: string; // ISO 8601
   horaInicio: string; // "HH:MM"
   horaTermino: string; // "HH:MM"
-  
+
   // Datas calculadas (opcionais)
   dataInicioCompleto?: string;
   dataFimCompleto?: string;
   dataInicioProducao?: string | null;
   dataFimProducao?: string | null;
-  
+
   // ✅ ATENÇÃO: Podem vir com nomes diferentes dependendo do populate
   espaco?: Espaco; // Se usar getClienteComReservasFuturas
   espacoId?: Espaco; // Se usar getClienteCompletoPopulate
-  
+
   tipoEvento?: TipoEvento; // Se usar getClienteComReservasFuturas
   eventoId?: TipoEvento; // Se usar getClienteCompletoPopulate
-  
+
   pagamentosDetalhes?: Pagamento[]; // Array de pagamentos detalhados
   pagamentos?: Pagamento[]; // Pode vir com este nome também
-  
+
   caucoes: Caucao[]; // Sempre presente
-  
+
   // Valores financeiros
   valor: number;
   totalPago: number;
   saldoPendente: number;
   paymentStatus: 'PENDENTE' | 'PARCIALMENTE_PAGO' | 'PAGO' | 'VENCIDO';
-  
+
   // Status e detalhes
   status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO';
   participants: number;
   paymentMethod?: string;
   description?: string;
-  
+
   // Serviços
   decoracaoInterna?: boolean;
   cateringInterno?: boolean;
@@ -154,20 +155,20 @@ export interface ReservaCompleta {
   decoracaoExterna?: boolean;
   cateringExterno?: boolean;
   djExterno?: boolean;
-  
+
   // Contatos
   contactoDecoradora?: string;
   contactoCatering?: string;
   contactoDJ?: string;
-  
+
   // Outros
   outrasInformacoes?: string;
   assinaturaFuncionario?: string;
-  
+
   // Produção
   comProducao?: boolean;
   diasProducao?: number;
-  
+
   // Timestamps
   createdAt?: string;
   updatedAt?: string;
@@ -176,7 +177,7 @@ export interface ReservaCompleta {
 
 export interface GetClienteCompletoPopulateResponse extends ClienteBase {
   reservas: ReservaCompleta[];
-  
+
   // Totais calculados
   totalReservas: number;
   totalValorReservas: number;
@@ -189,6 +190,17 @@ export interface GetClienteComReservasFuturasResponse extends ClienteBase {
   reservasFuturas: ReservaCompleta[];
 }
 
+export interface GetReservaEspecificaResponse {
+  cliente: ClienteBase;
+  reserva: ReservaCompleta;
+  totais?: {
+    valorReserva: number;
+    totalPago: number;
+    saldoPendente: number;
+    totalCaucoes: number;
+    valorTotalCaucoes: number;
+  };
+}
 
 export function normalizarReserva(reserva: ReservaCompleta): ReservaCompleta {
   return {
@@ -224,11 +236,11 @@ clienteApi.interceptors.response.use(
   async (error) => {
     if (error.response?.status === 401) {
       console.error('❌ Token inválido - Redirecionando para login');
-      
+
       // Limpar auth
       Cookies.remove('auth-token', { path: '/' });
       localStorage.removeItem('auth-storage');
-      
+
       // Redirecionar
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
@@ -241,15 +253,20 @@ clienteApi.interceptors.response.use(
 // ============ INTERFACES DO STORE ============
 
 export interface ClienteReservasStore {
+  clientedata: ClienteBase;
   // Estado
   clienteCompleto: GetClienteCompletoPopulateResponse | null;
   reservasFuturas: GetClienteComReservasFuturasResponse | null;
+  reservaEspecifica: GetReservaEspecificaResponse | null;
   loading: boolean;
   error: string | null;
-  
+
   // Ações
+  createPortal: (clientedata: any, password: string) => Promise<ClienteBase>;
+  findNumeracao: () => Promise<string>;
   getClienteCompletoPopulate: (numeroCliente: string) => Promise<void>;
   getClienteComReservasFuturas: (numeroCliente: string) => Promise<void>;
+  getClienteCompletoEspecificoPopulate: (numeroCliente: string, reservaId: string) => Promise<void>;
   clearError: () => void;
   reset: () => void;
 }
@@ -259,10 +276,142 @@ export interface ClienteReservasStore {
 export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
   // ✅ Estado inicial
   clienteCompleto: null,
+  clientedata: null,
   reservasFuturas: null,
+  reservaEspecifica: null,
   loading: false,
   error: null,
 
+  createPortal: async (clientedata: any, password: string) => {
+    console.log("🔵 ========== CRIANDO PORTAL ==========");
+    console.log("🔵 Cliente:", clientedata.nome);
+    console.log("🔵 Email:", clientedata.email);
+    console.log("🔵 Password:", password);
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await clienteApi.post<ClienteBase>(
+        `/clientes/createPortal/${password}`,
+        clientedata
+      );
+
+      console.log("✅ ========== PORTAL CRIADO COM SUCESSO ==========");
+      console.log("✅ Cliente criado:", response.data.nome);
+      console.log("✅ Número do Cliente:", response.data.numeroCliente);
+
+      // Atualizar o estado do cliente no store
+      set({
+        clientedata: response.data,
+        loading: false,
+        error: null,
+      });
+
+      console.log("✅ Estado atualizado com sucesso");
+
+      // Retornar os dados do cliente criado (opcional)
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO CRIAR PORTAL ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao criar portal do cliente';
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+  findNumeracao: async () => {
+    console.log("🔵 ========== BUSCANDO NUMERAÇÃO ==========");
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await clienteApi.get<any>(
+        `/clientes/findNumeracao`
+      );
+
+      console.log("✅ ========== NUMERAÇÃO OBTIDA ==========");
+      console.log("✅ Dados:", response.data);
+
+      set({
+        loading: false,
+        error: null,
+      });
+
+      console.log("✅ Estado atualizado com sucesso");
+
+      // Retornar os dados da numeração
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR NUMERAÇÃO ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao buscar numeração';
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+  getClienteCompletoEspecificoPopulate: async (numeroCliente: string, reservaId: string) => {
+    console.log("🔵 ========== BUSCANDO RESERVA ESPECÍFICA ==========");
+    console.log("🔵 Número Cliente:", numeroCliente);
+    console.log("🔵 Reserva ID:", reservaId);
+
+    set({ loading: true, error: null, reservaEspecifica: null });
+
+    try {
+      const response = await clienteApi.get<GetReservaEspecificaResponse>(
+        `/clientes/reserva-especifica/${numeroCliente}/${reservaId}`
+      );
+
+      console.log("✅ ========== RESERVA ESPECÍFICA CARREGADA ==========");
+      console.log("✅ Cliente:", response.data.cliente.nome);
+      console.log("✅ Reserva Ref:", response.data.reserva.ref);
+      console.log("✅ Cauções:", response.data.reserva.caucoes?.length || 0);
+
+      set({
+        reservaEspecifica: response.data,
+        loading: false,
+        error: null,
+      });
+
+      console.log("✅ Estado atualizado com sucesso");
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR RESERVA ESPECÍFICA ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        `Erro ao buscar reserva ${reservaId} do cliente ${numeroCliente}`;
+
+      set({
+        loading: false,
+        error: errorMessage,
+        reservaEspecifica: null,
+      });
+
+      throw error;
+    }
+  },
   /**
    * ✅ Buscar cliente completo com todas as reservas
    * GET /clientes/getReservaCompleta/:numeroCliente
