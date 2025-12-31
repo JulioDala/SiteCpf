@@ -253,6 +253,8 @@ clienteApi.interceptors.response.use(
 // ============ INTERFACES DO STORE ============
 
 export interface ClienteReservasStore {
+
+
   clientedata: ClienteBase;
   // Estado
   clienteCompleto: GetClienteCompletoPopulateResponse | null;
@@ -261,8 +263,11 @@ export interface ClienteReservasStore {
   loading: boolean;
   error: string | null;
 
+
+
   // Ações
   createPortal: (clientedata: any, password: string) => Promise<ClienteBase>;
+  updateClineteData: (clientedata: any) => Promise<ClienteBase>;
   findNumeracao: () => Promise<string>;
   getClienteCompletoPopulate: (numeroCliente: string) => Promise<void>;
   getClienteComReservasFuturas: (numeroCliente: string) => Promise<void>;
@@ -281,6 +286,7 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
   reservaEspecifica: null,
   loading: false,
   error: null,
+
 
   createPortal: async (clientedata: any, password: string) => {
     console.log("🔵 ========== CRIANDO PORTAL ==========");
@@ -320,6 +326,59 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
         error.response?.data?.message ||
         error.response?.data?.error ||
         'Erro ao criar portal do cliente';
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+  updateClineteData: async (clientedata: any) => {
+    console.log("🔄 ========== ATUALIZANDO DADOS DO CLIENTE ==========");
+    console.log("🔄 Cliente ID:", clientedata._id);
+    console.log("🔄 Dados a atualizar:", clientedata);
+
+    set({ loading: true, error: null });
+
+    try {
+      // Extrair o ID e criar DTO sem _id para envio
+      const { _id, ...updateData } = clientedata;
+
+      if (!_id) {
+        throw new Error("ID do cliente é necessário para atualização");
+      }
+
+      const response = await clienteApi.patch<ClienteBase>(
+        `/clientes/${_id}`,
+        updateData
+      );
+
+      console.log("✅ ========== DADOS ATUALIZADOS COM SUCESSO ==========");
+      console.log("✅ Cliente atualizado:", response.data.nome);
+      console.log("✅ Número do Cliente:", response.data.numeroCliente);
+
+      // Atualizar o estado do cliente no store
+      set((state) => ({
+        clientedata: { ...state.clientedata, ...response.data },
+        loading: false,
+        error: null,
+      }));
+
+      console.log("✅ Estado atualizado com sucesso");
+
+      // Retornar os dados do cliente atualizado
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO ATUALIZAR CLIENTE ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao atualizar dados do cliente';
 
       set({
         loading: false,

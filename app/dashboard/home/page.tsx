@@ -16,6 +16,7 @@ import { useDesportoStore } from '@/storage/cliente-desporto-stores';
 import FormcrearDesporto from '@/components/layout/modal-create-desporto';
 import NotificacaoBell from '@/components/layout/notificacaoBell';
 import NotificacoesModal from '@/components/layout/notificacoesModal';
+import { ModalPerfil } from '@/components/layout/modal-perfil';
 
 export default function ClientPortalHome() {
   const router = useRouter();
@@ -62,7 +63,7 @@ export default function ClientPortalHome() {
     loadingEstatistica: loadingReservaEstatistica,
     errorEstatistica: errorReservaEstatistica
   } = useBackendReservaStore();
-
+  const [showPerfilModal, setShowPerfilModal] = useState(false);
   const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
   const email = userLogin?.cliente.email || "";
@@ -386,7 +387,12 @@ export default function ClientPortalHome() {
                     {clienteCompleto?.status === 'Ativo' ? 'Membro Ativo' : clienteCompleto?.status || 'Membro'}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-full">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-full"
+                  onClick={() => setShowPerfilModal(true)}
+                >
                   <User className="w-5 h-5 text-gray-600" />
                 </Button>
                 <Button
@@ -909,7 +915,18 @@ export default function ClientPortalHome() {
           onOpenDesportoModal={(desporto) => {
             setShowDetalheDesporto(desporto);
             setShowNotificacoesModal(false);
-          }}
+          }
+
+          }
+
+
+        />
+
+      )}
+      {showPerfilModal && (
+        <ModalPerfil
+          isOpen={showPerfilModal}
+          onClose={() => setShowPerfilModal(false)}
         />
       )}
     </div>
