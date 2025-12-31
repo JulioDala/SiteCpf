@@ -1,7 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Eye, Calendar, Dumbbell, CheckCircle, AlertCircle, Clock, DollarSign, Loader2, Bell } from 'lucide-react';
+import { 
+  X, 
+  Trash2, 
+  Eye, 
+  Calendar, 
+  Dumbbell, 
+  CheckCircle, 
+  AlertCircle, 
+  Clock, 
+  DollarSign, 
+  Loader2, 
+  Bell,
+  ClipboardList,
+  BarChart3
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +25,9 @@ import { useClienteReservasStore } from '@/storage/cliente-storage';
 
 interface NotificacoesModalProps {
   userEmail: string;
-  numeroCliente:string;
+  numeroCliente: string;
   isOpen: boolean;
   onClose: () => void;
-  // Adicione estas props para controlar as outras modais
   onOpenReservaModal?: (reserva: any) => void;
   onOpenDesportoModal?: (desporto: any) => void;
 }
@@ -39,8 +52,8 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     buscarNotificacoesOrdenadas
   } = useNotificacaoStore();
   
-  const { fetchDesportoEspecifico, desportoEspecifico } = useDesportoStore();
-  const { getClienteCompletoEspecificoPopulate, reservaEspecifica } = useClienteReservasStore();
+  const { fetchDesportoEspecifico } = useDesportoStore();
+  const { getClienteCompletoEspecificoPopulate } = useClienteReservasStore();
   
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
@@ -52,16 +65,13 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     }
   }, [isOpen, userEmail, buscarNotificacoesOrdenadas]);
 
-  // Função auxiliar para determinar o tipo de notificação
   const obterTipoNotificacao = (entidade: TipoEntidade): 'RESERVA' | 'DESPORTO' | 'OUTRO' => {
     const entidadeStr = entidade.toString();
-    console.log(entidadeStr)
     if (entidadeStr.includes('RESERVA')) return 'RESERVA';
     if (entidadeStr.includes('DESPORTO')) return 'DESPORTO';
     return 'OUTRO';
   };
 
-  // Função para obter ícone baseado no tipo de entidade
   const getTipoEntidadeIcon = (tipoEntidade: TipoEntidade) => {
     switch (tipoEntidade) {
       case TipoEntidade.PAGAMENTO_DESPORTO:
@@ -75,7 +85,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     }
   };
 
-  // Função para obter cor baseado no tipo de entidade
   const getTipoEntidadeColor = (tipoEntidade: TipoEntidade) => {
     switch (tipoEntidade) {
       case TipoEntidade.PAGAMENTO_DESPORTO:
@@ -89,7 +98,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     }
   };
 
-  // Função para obter ícone baseado no tipo de ação
   const getTipoAcaoIcon = (tipoAcao: TipoAcao) => {
     switch (tipoAcao) {
       case TipoAcao.CRIADO:
@@ -108,7 +116,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     }
   };
 
-  // Função para formatar data
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -130,7 +137,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     }
   };
 
-  // Função para traduzir tipo de ação
   const translateTipoAcao = (tipoAcao: TipoAcao) => {
     const translations: Record<TipoAcao, string> = {
       [TipoAcao.CRIADO]: 'Criado',
@@ -143,7 +149,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     return translations[tipoAcao] || tipoAcao;
   };
 
-  // Função para traduzir tipo de entidade
   const translateTipoEntidade = (tipoEntidade: TipoEntidade) => {
     const translations: Record<TipoEntidade, string> = {
       [TipoEntidade.PAGAMENTO_DESPORTO]: 'Pagamento Desporto',
@@ -154,15 +159,12 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
     return translations[tipoEntidade] || tipoEntidade;
   };
 
-  // Função principal para lidar com o clique em "Detalhes"
   const handleVerDetalhes = async (notificacao: any) => {
     try {
       setLoadingDetalhe(notificacao._id);
       
       const tipo = obterTipoNotificacao(notificacao.tipoEntidade);
-      console.log(tipo)
       const entidadeId = notificacao?.idEntidade;
-      console.log(entidadeId)
       
       if (!entidadeId) {
         console.error('❌ ID da entidade não encontrado na notificação');
@@ -170,45 +172,24 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
         return;
       }
 
-      console.log(`🔍 Buscando detalhes da notificação: ${tipo} - ID: ${entidadeId}`);
-
       if (tipo === 'DESPORTO') {
-        // Buscar detalhes do desporto
         const desportoData = await fetchDesportoEspecifico(userEmail, entidadeId);
         
         if (desportoData && desportoData.length > 0 && onOpenDesportoModal) {
-          // Marcar como visualizada e abrir modal
           await marcarComoVisualizada(notificacao._id);
           onClose();
           onOpenDesportoModal(desportoData[0]);
-        } else {
-          console.error('❌ Não foi possível carregar os detalhes do desporto');
         }
-        
       } else if (tipo === 'RESERVA') {
-        // Para reservas, precisamos do número do cliente
-        console.log(numeroCliente)
         if (!numeroCliente) {
-          console.error('❌ Número do cliente não encontrado na notificação');
+          console.error('❌ Número do cliente não encontrado');
           return;
         }
         
-        // Buscar detalhes da reserva
         await getClienteCompletoEspecificoPopulate(numeroCliente, entidadeId);
-        
-        // Marcar como visualizada
         await marcarComoVisualizada(notificacao._id);
-        
-        // Fechar a modal de notificações
         onClose();
-        
-        // Nota: O onOpenReservaModal será chamado automaticamente pelo useEffect
-        // quando reservaEspecifica for atualizada
-        
-      } else {
-        console.log('⚠️ Tipo de notificação não suportado:', tipo);
       }
-      
     } catch (error) {
       console.error('❌ Erro ao buscar detalhes:', error);
     } finally {
@@ -264,13 +245,11 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Overlay com blur */}
       <div
         className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
-      {/* Modal */}
       <Card className="relative z-10 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border-0 bg-gradient-to-br from-white to-gray-50">
         <CardHeader className="flex-shrink-0 border-b border-gray-200/50 bg-gradient-to-r from-white to-gray-50">
           <div className="flex items-center justify-between">
@@ -306,7 +285,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
             </div>
           </div>
 
-          {/* Botão marcar todas como lidas */}
           {contagemNaoVisualizadas > 0 && (
             <div className="mt-3">
               <Button
@@ -322,14 +300,10 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
           )}
         </CardHeader>
 
-        {/* Conteúdo das notificações */}
         <CardContent className="flex-1 overflow-y-auto p-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <div className="relative">
-                <div className="w-12 h-12 border-4 border-purple-200 rounded-full"></div>
-                <div className="absolute top-0 left-0 w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
+              <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
               <p className="mt-4 text-gray-500 font-medium">Carregando notificações...</p>
             </div>
           ) : error ? (
@@ -363,9 +337,10 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
             </div>
           ) : (
             <>
-              <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+              <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-purple-600" />
                 <p className="text-sm text-gray-600 font-medium">
-                  📋 Mostrando <span className="text-purple-600 font-bold">{notificacoesOrdenadas.length}</span> de{' '}
+                  Mostrando <span className="text-purple-600 font-bold">{notificacoesOrdenadas.length}</span> de{' '}
                   <span className="text-gray-800 font-bold">{totalNotificacoes}</span> notificações
                 </p>
               </div>
@@ -380,7 +355,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                   }`}
                 >
                   <div className="flex gap-4 p-6">
-                    {/* Ícone do tipo de entidade */}
                     <div
                       className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border-2 shadow-sm ${getTipoEntidadeColor(
                         notificacao.tipoEntidade
@@ -389,7 +363,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                       {getTipoEntidadeIcon(notificacao.tipoEntidade)}
                     </div>
 
-                    {/* Conteúdo da notificação */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center flex-wrap gap-2 mb-2">
                         <Badge
@@ -411,7 +384,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                         {notificacao.mensagem}
                       </p>
 
-                      {/* Dados adicionais */}
                       {notificacao.dadosAdicionais && (
                         <div className="flex flex-wrap gap-2 mb-3">
                           {notificacao.dadosAdicionais.valor !== undefined && (
@@ -429,8 +401,9 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                       )}
 
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-xs text-gray-500 font-medium">
-                          📅 {formatDate(notificacao.createdAt)}
+                        <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {formatDate(notificacao.createdAt)}
                         </span>
 
                         <div className="flex items-center gap-2">
@@ -471,7 +444,6 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Indicador de não visualizada */}
                     {notificacao.status === StatusNotificacao.NAO_VISUALIZADA && (
                       <div className="flex-shrink-0 self-start">
                         <button
@@ -499,15 +471,16 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
           )}
         </CardContent>
 
-        {/* Rodapé */}
         <div className="flex-shrink-0 border-t border-gray-200/50 px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 font-medium">
-              📊 {totalNotificacoes} notificação{totalNotificacoes !== 1 ? 's' : ''}
+            <span className="text-gray-600 font-medium flex items-center gap-1.5">
+              <BarChart3 className="w-4 h-4 text-purple-600" />
+              {totalNotificacoes} notificação{totalNotificacoes !== 1 ? 's' : ''}
             </span>
             {contagemNaoVisualizadas > 0 && (
-              <Badge variant="secondary" className="text-xs bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 text-blue-700 font-medium">
-                🔔 {contagemNaoVisualizadas} não lida{contagemNaoVisualizadas !== 1 ? 's' : ''}
+              <Badge variant="secondary" className="text-xs bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 text-blue-700 font-medium flex items-center gap-1">
+                <Bell className="w-3.5 h-3.5" />
+                {contagemNaoVisualizadas} não lida{contagemNaoVisualizadas !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>

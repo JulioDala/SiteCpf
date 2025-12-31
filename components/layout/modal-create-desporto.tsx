@@ -52,20 +52,20 @@ import {
     Activity,
     Dumbbell,
     Target,
-    Lock
+    Lock,
+    CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '@/storage/atuh-storage';
 import { useDesportoStore, ICreateDesporto } from '@/storage/cliente-desporto-stores';
 import { useActividadeStore, ITipoAtividade } from "@/storage/cliente-desporto-actividade-store";
 import { useCampoStore, ICampo } from "@/storage/cliente-desporto-campo-store";
-import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 
 interface IFormcrearDesporto {
     onClose: () => void;
     handleDesporto?: (data: any) => void;
 }
 
-// Schema de validação - removidos campos financeiros obrigatórios
 const desportoSchema = z.object({
     nomeEquipe: z.string().min(1, 'Nome da equipa é obrigatório'),
     nomeResponsavel: z.string().min(1, 'Nome do responsável é obrigatório'),
@@ -115,32 +115,11 @@ const coresIdentificacao = [
     { value: '#14B8A6', label: 'Turquesa', color: 'bg-teal-500' },
 ];
 
-const modalidadesPagamento = [
-    { value: 'Mensal', label: 'Mensal' },
-    { value: 'Trimestral', label: 'Trimestral' },
-    { value: 'Semestral', label: 'Semestral' },
-    { value: 'Anual', label: 'Anual' },
-    { value: 'Avulso', label: 'Avulso' },
-];
-
 const tiposPeriodo = [
     { value: 'Curta Duração', label: 'Curta Duração (até 3 meses)' },
     { value: 'Média Duração', label: 'Média Duração (3-6 meses)' },
     { value: 'Longa Duração', label: 'Longa Duração (6+ meses)' },
     { value: 'Indefinido', label: 'Indefinido' },
-];
-
-const opcoesVendaIngresso = [
-    { value: 'Sim', label: 'Sim, vende ingressos' },
-    { value: 'Não', label: 'Não vende ingressos' },
-    { value: 'Opcional', label: 'Opcional' },
-];
-
-const statusPagamento = [
-    { value: 'Em dia', label: 'Em dia' },
-    { value: 'Pendente', label: 'Pendente' },
-    { value: 'Atrasado', label: 'Atrasado' },
-    { value: 'Isento', label: 'Isento' },
 ];
 
 const horariosDisponiveis = [
@@ -160,7 +139,6 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
 
     const clienteInfo = userLogin?.cliente;
 
-    // Carregar dados dinâmicos
     useEffect(() => {
         const loadDados = async () => {
             if (actividade.length === 0) {
@@ -173,7 +151,6 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
         loadDados();
     }, []);
 
-    // Filtrar apenas tipos de atividade e campos ativos
     const tiposAtividadeAtivos = actividade.filter((tipo: ITipoAtividade) => tipo.status === 'Ativo');
     const camposAtivos = campos.filter((campo: ICampo) => campo.status === 'Ativo');
 
@@ -206,18 +183,34 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
     });
 
     const onSubmit = async (data: DesportoFormData) => {
-        console.log("🏃 ========== SUBMIT DESPORTO INICIADO ==========");
+        console.log("🏃 ========== SUBMISSÃO INICIADA ==========");
         console.log("🏃 Dados do formulário:", data);
 
         if (!userLogin?.cliente?.email) {
             console.error("Cliente não autenticado!");
-            toast.error('Erro', {
-                description: 'Usuário não autenticado. Faça login novamente.',
+            await Swal.fire({
+                icon: 'error',
+                title: 'Erro de Autenticação',
+                text: 'Usuário não autenticado. Por favor, faça login novamente.',
+                confirmButtonText: 'Entendi',
+                confirmButtonColor: '#10b981',
             });
             return;
         }
 
         setIsSubmitting(true);
+
+        // Loading alert
+        Swal.fire({
+            title: 'Processando Solicitação',
+            text: 'Aguarde enquanto enviamos sua solicitação de atividade desportiva...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+        });
 
         try {
             const payload: ICreateDesporto = {
@@ -233,7 +226,7 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
                 tipoAtividade: data.tipoAtividade,
                 corIdentificacao: data.corIdentificacao,
                 valorPagamento: 0,
-                modalidadePagamento: 'Mensal', // Valor padrão para evitar erro de validação
+                modalidadePagamento: 'Mensal',
                 tipoPeriodo: data.tipoPeriodo,
                 vendaIngresso: 'Não',
                 valorIngresso: 0,
@@ -251,29 +244,85 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
 
             const desportoCriado = await createDesporto(payload);
 
-            console.log("🏃 Desporto criado com sucesso:", desportoCriado);
+            console.log("✅ Desporto criado:", desportoCriado);
 
-            toast.success('Sucesso!', {
-                description: 'Solicitação de atividade desportiva enviada com sucesso! Aguarde análise.',
+            // Success alert com opções
+            const result = await Swal.fire({
+                icon: 'success',
+                title: 'Solicitação Enviada!',
+                html: `
+                    <div class="text-left space-y-2">
+                        <p class="text-gray-700"><strong>Equipa/Atividade:</strong> ${data.nomeEquipe}</p>
+                        <p class="text-gray-700"><strong>Data de Início:</strong> ${format(data.dataInicio, "dd/MM/yyyy", { locale: pt })}</p>
+                        <p class="text-gray-700"><strong>Horário:</strong> ${data.horarioInicio} - ${data.horarioFim}</p>
+                        <p class="text-gray-700"><strong>Dias:</strong> ${data.diasSemana.join(', ')}</p>
+                        <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Em Análise</span></p>
+                        <div class="mt-4 p-3 bg-emerald-50 rounded-lg">
+                            <p class="text-sm text-emerald-800">
+                                <strong>Próximo passo:</strong> Aguarde o contato da administração para definição dos valores financeiros e confirmação da atividade.
+                            </p>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Ver Minhas Atividades',
+                confirmButtonColor: '#10b981',
+                showCancelButton: true,
+                cancelButtonText: 'Solicitar Outra Atividade',
+                cancelButtonColor: '#6b7280',
+                allowOutsideClick: false,
             });
 
             if (handleDesporto) {
                 handleDesporto(desportoCriado);
             }
 
-            onClose();
+            if (result.isConfirmed) {
+                // Usuário quer ver suas atividades
+                onClose();
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
+                // Usuário quer criar outra atividade
+                form.reset({
+                    nomeEquipe: '',
+                    nomeResponsavel: clienteInfo?.nome || '',
+                    email: clienteInfo?.email || '',
+                    morada: clienteInfo?.morada || '',
+                    bi: clienteInfo?.biPassaporte || '',
+                    contato: clienteInfo?.telefone || '',
+                    diasSemana: [],
+                    horarioInicio: '08:00',
+                    horarioFim: '09:00',
+                    tipoAtividade: '',
+                    corIdentificacao: '#3B82F6',
+                    valorPagamento: 0,
+                    modalidadePagamento: 'Mensal',
+                    tipoPeriodo: 'Média Duração',
+                    vendaIngresso: 'Não',
+                    valorIngresso: 0,
+                    valorCaucao: 0,
+                    dataInicio: new Date(),
+                    status: 'Rascunho',
+                    campo: '',
+                    statusPagamento: 'Pendente',
+                    observacoesAdicionais: '',
+                });
+            }
+
         } catch (error: any) {
-            console.error("🏃 Erro ao criar desporto:", error);
-            toast.error('Erro ao criar solicitação', {
-                description: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação.',
+            console.error("❌ Erro ao criar desporto:", error);
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro ao Enviar Solicitação',
+                text: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação. Tente novamente.',
+                confirmButtonText: 'Tentar Novamente',
+                confirmButtonColor: '#10b981',
             });
         } finally {
             setIsSubmitting(false);
-            console.log("🏃 Submit finalizado");
+            console.log("🏃 Submissão finalizada");
         }
     };
 
-    // Não renderizar se não houver cliente
     if (!clienteInfo) {
         return null;
     }
@@ -866,7 +915,7 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
                                 </div>
                             </div>
 
-                            {/* Botões */}
+                            {/* Botões de Ação */}
                             <div className="flex space-x-3 pt-2">
                                 <button
                                     type="button"
@@ -882,16 +931,18 @@ export default function FormcrearDesporto({ onClose, handleDesporto }: IFormcrea
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || desportoLoading}
-                                    className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    onClick={() => console.log("🏃 Botão submit desporto clicado")}
+                                    className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     {isSubmitting || desportoLoading ? (
-                                        <span className="flex items-center justify-center">
-                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                            Enviando Solicitação...
-                                        </span>
+                                        <>
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                            <span>Processando...</span>
+                                        </>
                                     ) : (
-                                        "Enviar Solicitação"
+                                        <>
+                                            <CheckCircle2 className="h-5 w-5" />
+                                            <span>Enviar Solicitação</span>
+                                        </>
                                     )}
                                 </button>
                             </div>

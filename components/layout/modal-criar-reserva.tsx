@@ -45,13 +45,14 @@ import {
   DollarSign,
   Calendar as CalendarLucide,
   FileText,
-  Settings
+  Settings,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '@/storage/atuh-storage';
-import { toast } from 'sonner';
 import { useBackendReservaStore } from '@/storage/reserva-store';
 import useTiposEventos from '@/storage/tipo-evento-store';
 import { useEspacosStore } from '@/storage/espaco-store';
+import Swal from 'sweetalert2';
 
 interface IFormCreairReserva {
   onClose: () => void;
@@ -120,7 +121,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
   });
 
   useEffect(() => {
-    console.log("🔵 Montando formulário de reserva");
+    console.log("🔵 Iniciando formulário de reserva");
     console.log("🔵 Cliente:", userLogin?.cliente);
     
     if (!espacos.length) {
@@ -134,20 +135,34 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
   }, []);
 
   const onSubmit = async (data: ReservaFormData) => {
-    console.log("🔵 ========== SUBMIT INICIADO ==========");
+    console.log("🔵 ========== SUBMISSÃO INICIADA ==========");
     console.log("🔵 Dados do formulário:", data);
-    console.log("🔵 UserLogin:", userLogin);
-    console.log("🔵 Cliente ID:", userLogin?.cliente?._id);
 
     if (!userLogin?.cliente?._id) {
       console.error("Cliente não autenticado!");
-      toast.error('Erro', {
-        description: 'Usuário não autenticado. Faça login novamente.',
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erro de Autenticação',
+        text: 'Usuário não autenticado. Por favor, faça login novamente.',
+        confirmButtonText: 'Entendi',
+        confirmButtonColor: '#9333ea',
       });
       return;
     }
 
     setIsSubmitting(true);
+
+    // Loading alert
+    Swal.fire({
+      title: 'Processando Reserva',
+      text: 'Aguarde enquanto criamos sua reserva...',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
     try {
       const payload = {
@@ -176,29 +191,80 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
         diasProducao: data.diasProducao || 0,
         outrasInformacoes: data.outrasInformacoes || '',
       };
+
       const reservaCriada = await createReserva(payload);
 
-      console.log("Reserva criada com sucesso:", reservaCriada);
+      console.log("✅ Reserva criada:", reservaCriada);
 
-      toast.success('Sucesso!', {
-        description: 'Reserva criada com sucesso!',
+      // Success alert com opções
+      const result = await Swal.fire({
+        icon: 'success',
+        title: 'Reserva Criada!',
+        html: `
+          <div class="text-left space-y-2">
+            <p class="text-gray-700"><strong>Data:</strong> ${format(data.data, "dd/MM/yyyy", { locale: pt })}</p>
+            <p class="text-gray-700"><strong>Horário:</strong> ${data.horaInicio} - ${data.horaTermino}</p>
+            <p class="text-gray-700"><strong>Participantes:</strong> ${data.participants}</p>
+            <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Rascunho</span></p>
+            <div class="mt-4 p-3 bg-purple-50 rounded-lg">
+              <p class="text-sm text-purple-800">
+                <strong>Próximo passo:</strong> Aguarde a análise da administração para confirmação da reserva.
+              </p>
+            </div>
+          </div>
+        `,
+        confirmButtonText: 'Ver Minhas Reservas',
+        confirmButtonColor: '#9333ea',
+        showCancelButton: true,
+        cancelButtonText: 'Criar Outra Reserva',
+        cancelButtonColor: '#6b7280',
+        allowOutsideClick: false,
       });
 
       handleReserva(reservaCriada);
-      onClose();
-    } catch (error: any) {
 
-      console.error("Error message:", error.message);
-      toast.error('Erro ao criar reserva', {
-        description: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação.',
+      if (result.isConfirmed) {
+        // Usuário quer ver suas reservas
+        onClose();
+      } else if (result.dismiss === Swal.DismissReason.cancel) {
+        // Usuário quer criar outra reserva
+        form.reset({
+          participants: 1,
+          valor: 0,
+          description: '',
+          decoracaoInterna: false,
+          cateringInterno: false,
+          djInterno: false,
+          decoracaoExterna: false,
+          cateringExterno: false,
+          djExterno: false,
+          contactoDecoradora: '',
+          contactoCatering: '',
+          contactoDJ: '',
+          comProducao: false,
+          diasProducao: 0,
+          outrasInformacoes: '',
+        });
+      }
+
+    } catch (error: any) {
+      console.error("❌ Erro ao criar reserva:", error);
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro ao Criar Reserva',
+        text: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação. Tente novamente.',
+        confirmButtonText: 'Tentar Novamente',
+        confirmButtonColor: '#9333ea',
       });
     } finally {
       setIsSubmitting(false);
-      console.log("🔵 Submit finalizado");
+      console.log("🔵 Submissão finalizada");
     }
   };
 
   const clienteInfo = userLogin?.cliente;
+  
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
       <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-slideUp">
@@ -207,7 +273,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
           <div className="relative flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold mb-1">Nova Reserva de Espaço</h2>
-              <p className="text-purple-100 text-sm">Preencha os dados para criar uma nova reserva</p>
+              <p className="text-purple-100 text-sm">Preencha os dados para solicitar uma nova reserva</p>
             </div>
             <button
               onClick={() => {
@@ -808,7 +874,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </div>
               )}
 
-              {/* Botões */}
+              {/* Botões de Ação */}
               <div className="flex space-x-3 pt-2">
                 <button
                   type="button"
@@ -824,16 +890,18 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 <button
                   type="submit"
                   disabled={isSubmitting || reservaLoading}
-                  className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => console.log("🔵 Botão submit clicado")}
+                  className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting || reservaLoading ? (
-                    <span className="flex items-center justify-center">
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Criando Reserva...
-                    </span>
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Processando...</span>
+                    </>
                   ) : (
-                    "Criar Reserva"
+                    <>
+                      <CheckCircle2 className="h-5 w-5" />
+                      <span>Solicitar Reserva</span>
+                    </>
                   )}
                 </button>
               </div>

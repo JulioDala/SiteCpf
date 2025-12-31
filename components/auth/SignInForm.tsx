@@ -6,20 +6,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useClienteReservasStore } from '@/storage/cliente-storage';
+import { Loader2, CheckCircle2, AlertCircle, User, Mail, Phone, MapPin, CreditCard, Lock, Eye, EyeOff } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { useAuthStore } from '@/storage/atuh-storage';
 
-// Enums atualizados para corresponder ao backend
 const ClienteTipo = {
   EXTERNO: 'externo',
   SONANGOL: 'sonangol',
 } as const;
 
-// Schema de validação Zod ÚNICO
 const clienteSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
   tipo: z.enum([ClienteTipo.EXTERNO, ClienteTipo.SONANGOL]),
@@ -36,12 +35,11 @@ const clienteSchema = z.object({
   numeroCliente: z.string().min(1, 'Número do cliente é obrigatório'),
   biPassaporte: z.string().optional(),
   morada: z.string().optional(),
-  password: z.string().min(6, 'Senha do portal deve ter pelo menos 6 caracteres'),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
 type ClienteFormData = z.infer<typeof clienteSchema>;
 
-// Interface que corresponde EXATAMENTE ao CreateClienteDto do backend
 interface CreateClienteDto {
   nome: string;
   tipo: 'externo' | 'sonangol';
@@ -51,14 +49,18 @@ interface CreateClienteDto {
   numeroCliente: string;
   biPassaporte?: string;
   morada?: string;
-  // NÃO incluir: _id, status, webCredencial, createdAt, updatedAt
 }
 
 export default function CadastroClienteForm() {
   const router = useRouter();
   const [isLoadingNumeracao, setIsLoadingNumeracao] = useState(false);
   const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
-  
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false,
+  });
+
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
     defaultValues: {
@@ -70,11 +72,20 @@ export default function CadastroClienteForm() {
       numeroCliente: '',
       biPassaporte: '',
       morada: '',
-      password: '',
+      password: 'CLI000',
     },
   });
 
   const { createPortal, findNumeracao, loading: storeLoading, error: storeError, clearError } = useClienteReservasStore();
+  const { login, loading: authLoading, error: authError, clearError: clearAuthError } = useAuthStore(); // ✅ Obter auth store
+
+  const passwordValue = form.watch('password');
+
+  useEffect(() => {
+    setPasswordStrength({
+      length: passwordValue.length >= 6,
+    });
+  }, [passwordValue]);
 
   const fetchNumeracao = async (showSuccessAlert = false) => {
     try {
@@ -106,7 +117,6 @@ export default function CadastroClienteForm() {
       }
     } catch (error: any) {
       console.error('Erro ao buscar numeração:', error);
-      
       form.setValue('numeroCliente', '', { shouldValidate: true });
       
       if (hasFetchedInitial) {
@@ -124,18 +134,13 @@ export default function CadastroClienteForm() {
 
   useEffect(() => {
     let mounted = true;
-    
     const initNumeracao = async () => {
       if (mounted && !hasFetchedInitial) {
         await fetchNumeracao(false);
       }
     };
-    
     initNumeracao();
-    
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -145,64 +150,119 @@ export default function CadastroClienteForm() {
         title: 'Erro na operação',
         text: storeError,
         confirmButtonText: 'OK',
-      }).then(() => {
-        clearError();
-      });
+      }).then(() => clearError());
     }
   }, [storeError, clearError, hasFetchedInitial]);
 
+  const handleAutoLogin = async (username: string, password: string) => {
+    try {
+      console.log('🔐 Tentando login automático com:', { username, password });
+      
+      await login({ username, password });
+      
+      console.log('✅ Login automático bem-sucedido!');
+      
+      // Redirecionar para o dashboard
+      router.push('/dashboard/home');
+      
+      // Mostrar mensagem de sucesso
+      Swal.fire({
+        icon: 'success',
+        title: 'Login automático realizado!',
+        text: 'Você foi conectado automaticamente com as credenciais do cliente.',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Erro no login automático:', error);
+      
+      // Se falhar o login automático, ainda redireciona para a lista de clientes
+      Swal.fire({
+        icon: 'warning',
+        title: 'Portal criado, mas login falhou',
+        html: `
+          <div class="text-left">
+            <p>Portal criado com sucesso, mas não foi possível fazer login automático.</p>
+            <p class="mt-2 text-sm">Erro: ${error.message || 'Credenciais inválidas'}</p>
+            <p class="mt-2 text-sm">Você será redirecionado para a lista de clientes.</p>
+          </div>
+        `,
+        confirmButtonText: 'OK',
+      }).then(() => {
+        router.push('/dashboard/clientes');
+      });
+    }
+  };
+
   const onSubmit = async (data: ClienteFormData) => {
     try {
-      // ✅ CORRIGIDO: Criar objeto que corresponde EXATAMENTE ao DTO do backend
       const clienteData: CreateClienteDto = {
-        // ❌ NÃO incluir: _id, status, webCredencial, createdAt, updatedAt
         nome: data.nome,
         tipo: data.tipo,
         telefone: data.telefone,
-        whatsapp: data.whatsapp || undefined, // Enviar undefined se vazio
+        whatsapp: data.whatsapp || undefined,
         email: data.email,
         numeroCliente: data.numeroCliente,
         biPassaporte: data.biPassaporte || undefined,
         morada: data.morada || undefined,
       };
 
-      console.log('✅ Dados enviados (correspondem ao DTO):', clienteData);
+      console.log('📤 Dados enviados para criação:', {
+        clienteData,
+        password: data.password
+      });
 
-      const swalInstance = Swal.fire({
+      Swal.fire({
         title: 'Criando portal...',
         text: 'Por favor, aguarde',
         allowOutsideClick: false,
         showConfirmButton: false,
-        didOpen: () => {
-          Swal.showLoading();
-        },
+        didOpen: () => Swal.showLoading(),
       });
 
-      // ❌ IMPORTANTE: Atualize a store para aceitar CreateClienteDto em vez de ClienteBase
       const resultado = await createPortal(clienteData, data.password);
 
-      await swalInstance.close();
+      console.log('✅ Portal criado com sucesso:', resultado);
 
+      // ✅ NOVA LÓGICA: Login automático
       await Swal.fire({
         icon: 'success',
         title: 'Portal criado com sucesso!',
         html: `
-          <div class="text-left">
+          <div class="text-left space-y-2">
             <p><strong>Cliente:</strong> ${resultado.nome}</p>
             <p><strong>Número:</strong> ${resultado.numeroCliente}</p>
             <p><strong>Email:</strong> ${resultado.email}</p>
             <p><strong>Status:</strong> ${resultado.status}</p>
-            <p class="mt-4 text-sm text-gray-600">O cliente pode agora acessar o portal com suas credenciais.</p>
+            <p class="mt-4 text-sm text-gray-600">
+              Deseja fazer login automaticamente com este cliente?
+            </p>
           </div>
         `,
-        confirmButtonText: 'Continuar',
+        confirmButtonText: 'Sim, fazer login',
         showCancelButton: true,
         cancelButtonText: 'Criar outro',
         allowOutsideClick: false,
-      }).then((result) => {
+      }).then(async (result) => {
         if (result.isConfirmed) {
-          router.push('/dashboard/clientes');
+          // Fazer login automático com as credenciais do cliente
+          // Usar email como username (ou numeroCliente, dependendo do seu backend)
+          const username = resultado.email; // ou resultado.numeroCliente
+          
+          Swal.fire({
+            title: 'Fazendo login...',
+            text: 'Conectando com as credenciais do cliente',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+          });
+          
+          // Chama a função de login automático
+          await handleAutoLogin(username, data.password);
+          
         } else {
+          // Criar outro cliente - resetar formulário
           form.reset({
             nome: '',
             tipo: ClienteTipo.EXTERNO,
@@ -219,19 +279,14 @@ export default function CadastroClienteForm() {
       });
 
     } catch (error: any) {
-      console.error('Erro ao criar portal:', error);
-      
+      console.error('❌ Erro ao criar portal:', error);
       Swal.close();
-      
-      if (error?.name !== 'ZodError') {
-        Swal.fire({
-          icon: 'error',
-          title: 'Erro ao criar portal',
-          text: error.message || 'Ocorreu um erro ao criar o portal do cliente',
-          confirmButtonText: 'OK',
-          allowOutsideClick: false,
-        });
-      }
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro ao criar portal',
+        text: error.message || 'Ocorreu um erro ao criar o portal do cliente',
+        confirmButtonText: 'OK',
+      });
     }
   };
 
@@ -243,9 +298,7 @@ export default function CadastroClienteForm() {
       showCancelButton: true,
       confirmButtonText: 'Sim, gerar novo',
       cancelButtonText: 'Manter atual',
-      allowOutsideClick: false,
     });
-
     if (result.isConfirmed) {
       await fetchNumeracao(true);
     }
@@ -254,40 +307,46 @@ export default function CadastroClienteForm() {
   const numeroClienteValue = form.watch('numeroCliente');
   const isNumeroClienteValid = numeroClienteValue && 
                              numeroClienteValue !== '' && 
-                             numeroClienteValue !== 'Gerando número...' &&
-                             numeroClienteValue !== 'Buscando número disponível...';
+                             numeroClienteValue !== 'Gerando número...';
+
+  // Loading combinado (cliente + auth)
+  const isLoading = storeLoading || isLoadingNumeracao || authLoading;
 
   return (
-    <div className="min-h-screen bg-cyan-50 text-gray-900 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8">
-      <Card className="mx-auto max-w-2xl w-full border-0 shadow-lg bg-white">
-        <CardHeader className="space-y-1 pb-6">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 flex items-center justify-center">
-              <img src="./../images/ico-paz-flor.png" alt="Logo CPF" className="w-full h-full rounded-xl" />
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-white flex items-center justify-center p-4">
+      <Card className="mx-auto max-w-4xl w-full border-0 shadow-2xl bg-white rounded-3xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48"></div>
+          <div className="relative flex items-center justify-center mb-6">
+            <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+              <img src="./../images/ico-paz-flor.png" alt="Logo CPF" className="w-16 h-16" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-center text-gray-900">Cadastro de Cliente</CardTitle>
-          <CardDescription className="text-center text-gray-600">
-            Crie um portal de acesso para o cliente. A numeração será gerada automaticamente.
+          <CardTitle className="text-3xl font-bold text-center">Cadastro de Cliente</CardTitle>
+          <CardDescription className="text-purple-100 text-center text-lg mt-2">
+            Crie um portal de acesso personalizado para o cliente
           </CardDescription>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="p-8">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="nome"
                   render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Nome Completo *</FormLabel>
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <User className="w-4 h-4 text-purple-600" />
+                        Nome Completo *
+                      </FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="João da Silva" 
                           {...field} 
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
@@ -300,14 +359,10 @@ export default function CadastroClienteForm() {
                   name="tipo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tipo de Cliente *</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                        disabled={storeLoading || isLoadingNumeracao}
-                      >
+                      <FormLabel className="text-sm font-medium text-gray-700">Tipo de Cliente *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200">
                             <SelectValue placeholder="Selecione o tipo" />
                           </SelectTrigger>
                         </FormControl>
@@ -326,19 +381,22 @@ export default function CadastroClienteForm() {
                   name="numeroCliente"
                   render={({ field }) => (
                     <FormItem>
-                      <div className="flex justify-between items-center">
-                        <FormLabel>Número do Cliente *</FormLabel>
+                      <div className="flex justify-between items-center mb-1">
+                        <FormLabel className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-purple-600" />
+                          Número do Cliente *
+                        </FormLabel>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={handleRegenerateNumeracao}
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
                           className="text-xs text-purple-600 hover:text-purple-700"
                         >
                           {isLoadingNumeracao ? (
                             <>
-                              <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600 mr-1"></span>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                               Gerando...
                             </>
                           ) : (
@@ -349,29 +407,18 @@ export default function CadastroClienteForm() {
                       <FormControl>
                         <div className="relative">
                           <Input 
-                            placeholder="Número será gerado automaticamente" 
                             {...field} 
-                            disabled={storeLoading || isLoadingNumeracao}
-                            className={isLoadingNumeracao ? "italic text-gray-500" : ""}
-                            onChange={(e) => {
-                              if (!isLoadingNumeracao) {
-                                field.onChange(e.target.value);
-                              }
-                            }}
+                            disabled
+                            className="bg-gray-50 italic text-gray-600"
                           />
                           {isLoadingNumeracao && (
                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                              <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                             </div>
                           )}
                         </div>
                       </FormControl>
-                      <p className="text-xs text-gray-500">
-                        {isLoadingNumeracao 
-                          ? 'Aguarde, gerando número...' 
-                          : 'Número gerado automaticamente. Clique em "Gerar novo" para regenerar.'}
-                      </p>
-                      <FormMessage />
+                      <p className="text-xs text-gray-500 mt-1">Número gerado automaticamente</p>
                     </FormItem>
                   )}
                 />
@@ -381,12 +428,13 @@ export default function CadastroClienteForm() {
                   name="biPassaporte"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>BI/Passaporte</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">BI/Passaporte</FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="000000000LA000" 
                           {...field} 
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
@@ -399,13 +447,17 @@ export default function CadastroClienteForm() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>E-mail *</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-purple-600" />
+                        E-mail *
+                      </FormLabel>
                       <FormControl>
                         <Input 
                           type="email"
                           placeholder="cliente@email.com" 
                           {...field} 
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
@@ -418,14 +470,18 @@ export default function CadastroClienteForm() {
                   name="telefone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Telefone *</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-purple-600" />
+                        Telefone *
+                      </FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="900000000 (9 dígitos)" 
+                          placeholder="900000000" 
                           {...field} 
                           onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ''))}
                           maxLength={9}
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
@@ -438,20 +494,19 @@ export default function CadastroClienteForm() {
                   name="whatsapp"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>WhatsApp</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700">WhatsApp</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="900000000 (9 dígitos)" 
+                          placeholder="900000000 (opcional)" 
                           {...field} 
                           onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ''))}
                           maxLength={9}
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
-                      <p className="text-xs text-gray-500">
-                        Opcional. Deixe vazio para usar o mesmo número do telefone.
-                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Deixe vazio para usar o mesmo número do telefone</p>
                     </FormItem>
                   )}
                 />
@@ -461,81 +516,130 @@ export default function CadastroClienteForm() {
                   name="morada"
                   render={({ field }) => (
                     <FormItem className="md:col-span-2">
-                      <FormLabel>Morada</FormLabel>
+                      <FormLabel className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-purple-600" />
+                        Morada
+                      </FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="Rua, Bairro, Município" 
                           {...field} 
-                          disabled={storeLoading || isLoadingNumeracao}
+                          disabled={isLoading}
+                          className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                         />
                       </FormControl>
                       <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Senha do Portal *</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="password"
-                          placeholder="Senha para criar o portal (mínimo 6 caracteres)" 
-                          {...field} 
-                          disabled={storeLoading || isLoadingNumeracao}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <p className="text-xs text-gray-500">
-                        Esta senha será usada apenas para criar o portal. O cliente receberá credenciais separadas.
-                      </p>
                     </FormItem>
                   )}
                 />
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl p-6 border border-purple-200">
+                <h3 className="font-semibold text-lg text-gray-900 mb-4 flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-purple-600" />
+                  Credenciais de Acesso
+                </h3>
+
+                <div className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">Senha do Portal *</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input 
+                              type={showPassword ? "text" : "password"}
+                              placeholder="Digite uma senha (mínimo 6 caracteres)" 
+                              {...field} 
+                              disabled={isLoading}
+                              className="bg-white border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                              disabled={isLoading}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl border border-purple-100">
+                    <p className="text-sm font-medium text-gray-700 mb-3">A senha deve ter:</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-3">
+                        {passwordStrength.length ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-gray-400" />
+                        )}
+                        <span className={passwordStrength.length ? "text-gray-700" : "text-gray-500"}>
+                          Pelo menos 6 caracteres
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Esta senha será usada para criar o portal e também para login automático.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-6">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 py-6 text-base font-semibold border-gray-300 hover:bg-gray-50"
                   onClick={() => router.back()}
-                  disabled={storeLoading || isLoadingNumeracao}
+                  disabled={isLoading}
                 >
                   Cancelar
                 </Button>
                 <Button 
                   type="submit" 
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold" 
-                  disabled={storeLoading || isLoadingNumeracao || !isNumeroClienteValid}
+                  className="flex-1 py-6 text-base font-semibold bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg"
+                  disabled={isLoading || !isNumeroClienteValid}
                 >
-                  {storeLoading ? (
+                  {isLoading ? (
                     <>
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
-                      Criando portal...
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      {authLoading ? 'Fazendo login...' : 'Criando portal...'}
                     </>
-                  ) : 'Criar Portal do Cliente'}
+                  ) : (
+                    'Criar Portal do Cliente'
+                  )}
                 </Button>
               </div>
             </form>
           </Form>
 
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">Informações importantes:</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• O número do cliente é gerado automaticamente pelo sistema</li>
-                <li>• Após criar o portal, o cliente receberá credenciais de acesso</li>
-                <li>• A senha do portal é diferente das credenciais do cliente</li>
-                <li>• Todos os campos com * são obrigatórios</li>
-                {isLoadingNumeracao && (
-                  <li className="text-amber-700 font-semibold">⏳ Aguarde, gerando número do cliente...</li>
-                )}
-              </ul>
-            </div>
+          <div className="mt-8 p-6 bg-gradient-to-br from-blue-50 to-white rounded-2xl border border-blue-200">
+            <h4 className="font-semibold text-blue-800 mb-3">Informações importantes:</h4>
+            <ul className="text-sm text-blue-700 space-y-2">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" />
+                O número do cliente é gerado automaticamente pelo sistema
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" />
+                Após criar o portal, você pode fazer login automaticamente
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" />
+                A senha será usada tanto para criar o portal quanto para login
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5" />
+                Todos os campos com * são obrigatórios
+              </li>
+            </ul>
           </div>
         </CardContent>
       </Card>

@@ -24,6 +24,8 @@ export default function ClientPortalHome() {
   const [showModal, setShowModal] = useState({ type: '', item: null as any });
   const [showDetalheReserva, setShowDetalheReserva] = useState<any>(null);
   const [showDetalheDesporto, setShowDetalheDesporto] = useState<any>(null);
+  const [showNotificacoesModal, setShowNotificacoesModal] = useState(false);
+
   // ✅ Store de reservas
   const {
     clienteCompleto,
@@ -32,10 +34,10 @@ export default function ClientPortalHome() {
     error,
     getClienteCompletoPopulate,
     getClienteComReservasFuturas,
-    clearError
+    clearError,
+    reservaEspecifica
   } = useClienteReservasStore();
-  // Adicione este estado junto com os outros estados no início do componente
-  const [showNotificacoesModal, setShowNotificacoesModal] = useState(false);
+
   // ✅ Store de desporto
   const {
     desportosFuturos,
@@ -49,7 +51,9 @@ export default function ClientPortalHome() {
     loadingCompletos: loadingDesportoCompletos,
     errorCompletos: errorDesportoCompletos,
     fetchDesportosFuturos,
-    fetchDesportosCompletos
+    fetchDesportosCompletos,
+    fetchDesportoEspecifico,
+    desportoEspecifico
   } = useDesportoStore();
 
   const {
@@ -58,10 +62,6 @@ export default function ClientPortalHome() {
     loadingEstatistica: loadingReservaEstatistica,
     errorEstatistica: errorReservaEstatistica
   } = useBackendReservaStore();
-
-  const { fetchDesportoEspecifico, desportoEspecifico } = useDesportoStore();
-  const { getClienteCompletoEspecificoPopulate, reservaEspecifica } = useClienteReservasStore();
-
 
   const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
@@ -88,17 +88,12 @@ export default function ClientPortalHome() {
 
   useEffect(() => {
     if (reservaEspecifica?.reserva) {
-      // Quando uma reserva específica é carregada (por exemplo, ao clicar em uma notificação)
-      // Abre automaticamente o modal de detalhes da reserva
       setShowDetalheReserva(reservaEspecifica.reserva);
     }
   }, [reservaEspecifica]);
 
-  // Use um useEffect para monitorar quando o desportoEspecifico é atualizado
   useEffect(() => {
     if (desportoEspecifico) {
-      // Quando um desporto específico é carregado
-      // Abre automaticamente o modal de detalhes do desporto
       setShowDetalheDesporto(desportoEspecifico);
     }
   }, [desportoEspecifico]);
@@ -242,53 +237,6 @@ export default function ClientPortalHome() {
     return `${paga}/${pagamentos.length} parcelas • ${valorPago.toLocaleString()} AOA`;
   };
 
-  // ✅ Renderizar lista de pagamentos
-  const renderPagamentosList = (reserva: ReservaCompleta) => {
-    const pagamentos = reserva.pagamentosDetalhes || [];
-
-    return (
-      <div className="mt-2 space-y-1">
-        {pagamentos.map(pag => (
-          <div key={pag._id} className="flex justify-between text-xs">
-            <span>
-              {new Date(pag.dataPagamento).toLocaleDateString('pt-PT')} - {pag.valorPago} AOA
-            </span>
-            <Badge
-              variant="secondary"
-              className={`rounded-full px-2 py-0.5 ${pag.status === 'pago' || pag.status === 'PAGO'
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
-            >
-              {pag.status}
-            </Badge>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  function handleReserva(data: any) {
-    console.log("📊 Reserva criada:", data);
-    // Aqui você pode atualizar a lista de reservas se necessário
-    if (numeroCliente) {
-      getClienteComReservasFuturas(numeroCliente);
-    }
-    if (idCliente) {
-      fetchEstatisticaReserva(idCliente);
-    }
-  }
-
-  function handleDesporto(data: any) {
-    console.log("🏃 Desporto criado:", data);
-    // Aqui você pode atualizar a lista de desportos se necessário
-    if (email) {
-      fetchDesportosFuturos(email);
-      fetchDesportosCompletos(email);
-      fetchDesportosEstatistica(email);
-    }
-  }
-
   // ✅ Renderizar informações de caução
   const renderCaucaoInfo = (reserva: ReservaCompleta) => {
     const caucao = reserva.caucoes?.[0];
@@ -342,6 +290,25 @@ export default function ClientPortalHome() {
   const closeModal = () => {
     setShowModal({ type: '', item: null });
   };
+
+  function handleReserva(data: any) {
+    console.log("📊 Reserva criada:", data);
+    if (numeroCliente) {
+      getClienteComReservasFuturas(numeroCliente);
+    }
+    if (idCliente) {
+      fetchEstatisticaReserva(idCliente);
+    }
+  }
+
+  function handleDesporto(data: any) {
+    console.log("🏃 Desporto criado:", data);
+    if (email) {
+      fetchDesportosFuturos(email);
+      fetchDesportosCompletos(email);
+      fetchDesportosEstatistica(email);
+    }
+  }
 
   // ✅ Renderizar estado de carregamento
   if (loading || loadingDesportoFuturos || loadingDesportoCompletos) {
@@ -416,7 +383,7 @@ export default function ClientPortalHome() {
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">{clientName}</p>
                   <p className="text-xs text-gray-500">
-                    {clienteCompleto?.status === 'ATIVO' ? 'Membro Ativo' : clienteCompleto?.status || 'Membro'}
+                    {clienteCompleto?.status === 'Ativo' ? 'Membro Ativo' : clienteCompleto?.status || 'Membro'}
                   </p>
                 </div>
                 <Button variant="ghost" size="icon" className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-full">
@@ -451,7 +418,6 @@ export default function ClientPortalHome() {
 
         {/* Stats Cards - Desporto & Reservas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-
           {/* Reservas Ativas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 hover:-translate-y-1">
             <CardContent className="p-6">
@@ -608,7 +574,6 @@ export default function ClientPortalHome() {
               </div>
             </div>
 
-            {/* Se não houver dados */}
             {(!reservaEstatistica && !desportoEstatistica) && (
               <div className="text-center py-8">
                 <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -618,7 +583,7 @@ export default function ClientPortalHome() {
           </CardContent>
         </Card>
 
-        {/* Tabs Navigation - REMOVIDO GINÁSIO */}
+        {/* Tabs Navigation */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex border-b border-gray-200 bg-gray-50">
@@ -626,7 +591,6 @@ export default function ClientPortalHome() {
                 { value: 'overview', label: 'Visão Geral', icon: Activity },
                 { value: 'reservas', label: 'Reservas', icon: Calendar },
                 { value: 'desporto', label: 'Desporto', icon: Dumbbell },
-                // Ginásio removido
               ].map(tab => {
                 const Icon = tab.icon;
                 return (
@@ -660,9 +624,7 @@ export default function ClientPortalHome() {
                       <Button
                         size="lg"
                         className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                        onClick={() => {
-                          setShowModal({ type: 'RegistarReserva', item: null })
-                        }}
+                        onClick={() => setShowModal({ type: 'RegistarReserva', item: null })}
                       >
                         <Plus className="w-4 h-4" />
                         <span>Nova Reserva</span>
@@ -670,9 +632,7 @@ export default function ClientPortalHome() {
                       <Button
                         size="lg"
                         className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                        onClick={() => {
-                          setShowModal({ type: 'RegistarDesporto', item: null })
-                        }}
+                        onClick={() => setShowModal({ type: 'RegistarDesporto', item: null })}
                       >
                         <Plus className="w-4 h-4" />
                         <span>Nova Atividade Desportiva</span>
@@ -750,9 +710,7 @@ export default function ClientPortalHome() {
                     <Button
                       size="lg"
                       className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                      onClick={() => {
-                        setShowModal({ type: 'RegistarReserva', item: null })
-                      }}
+                      onClick={() => setShowModal({ type: 'RegistarReserva', item: null })}
                     >
                       <Plus className="w-4 h-4" />
                       <span>Nova Reserva</span>
@@ -816,7 +774,7 @@ export default function ClientPortalHome() {
                             <Button
                               variant="outline"
                               className="flex-1 px-4 py-2.5 border-2 border-purple-300 text-purple-700 rounded-lg font-medium hover:bg-purple-50 transition-colors text-sm"
-                              onClick={() => openModal('reserva', res)}
+                              onClick={() => setShowDetalheReserva(res)}
                             >
                               Ver Detalhes
                             </Button>
@@ -835,12 +793,10 @@ export default function ClientPortalHome() {
                     <Button
                       size="lg"
                       className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
-                      onClick={() => {
-                        setShowModal({ type: 'RegistarDesporto', item: null })
-                      }}
+                      onClick={() => setShowModal({ type: 'RegistarDesporto', item: null })}
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Nova Inscrição</span>
+                      <span>Nova Actividade Desportiva</span>
                     </Button>
                   </div>
 
@@ -893,7 +849,7 @@ export default function ClientPortalHome() {
                             <Button
                               variant="outline"
                               className="flex-1 px-4 py-2.5 border-2 border-emerald-300 text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors text-sm"
-                              onClick={() => openModal('desporto', desporto)}
+                              onClick={() => setShowDetalheDesporto(desporto)}
                             >
                               Ver Detalhes
                             </Button>
@@ -918,7 +874,6 @@ export default function ClientPortalHome() {
         />
       )}
 
-      {/* Modal de Detalhes do Desporto (acionado por notificações) */}
       {showDetalheDesporto && (
         <ModalDetalheDesporto
           data={showDetalheDesporto}
@@ -926,30 +881,32 @@ export default function ClientPortalHome() {
           onClose={() => setShowDetalheDesporto(null)}
         />
       )}
+
       {showModal.type === 'RegistarReserva' && (
         <FormCreairReserva
           handleReserva={handleReserva}
           onClose={closeModal}
         />
       )}
+
       {showModal.type === 'RegistarDesporto' && (
         <FormcrearDesporto
           handleDesporto={handleDesporto}
           onClose={closeModal}
         />
-      )}{showNotificacoesModal && (
+      )}
+
+      {showNotificacoesModal && (
         <NotificacoesModal
           userEmail={email}
           numeroCliente={numeroCliente}
           isOpen={showNotificacoesModal}
           onClose={() => setShowNotificacoesModal(false)}
           onOpenReservaModal={(reserva) => {
-            // Esta função será chamada quando uma notificação de reserva for clicada
             setShowDetalheReserva(reserva);
             setShowNotificacoesModal(false);
           }}
           onOpenDesportoModal={(desporto) => {
-            // Esta função será chamada quando uma notificação de desporto for clicada
             setShowDetalheDesporto(desporto);
             setShowNotificacoesModal(false);
           }}
@@ -957,4 +914,4 @@ export default function ClientPortalHome() {
       )}
     </div>
   );
-};
+}
