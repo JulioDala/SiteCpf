@@ -389,7 +389,7 @@ const NotificacoesModal: React.FC<NotificacoesModalProps> = ({
                           {notificacao.dadosAdicionais.valor !== undefined && (
                             <Badge variant="secondary" className="text-xs bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-700">
                               <DollarSign className="w-3 h-3 mr-1" />
-                              {notificacao.dadosAdicionais.valor.toLocaleString()} MT
+                              {notificacao.dadosAdicionais.valor.toLocaleString()} KZ
                             </Badge>
                           )}
                           {(notificacao.dadosAdicionais.statusAnterior || notificacao.dadosAdicionais.statusAtual) && (

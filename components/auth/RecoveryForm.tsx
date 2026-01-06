@@ -8,13 +8,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Lock, Phone, User, Shield, Check, X } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Phone, User, Shield, Check, X, Key } from 'lucide-react';
 import { useAuthStore } from '@/storage/atuh-storage';
 import Swal from 'sweetalert2';
 
 // Schema para solicitar recuperação
-const recuperarSenhaSchema = z.object({
+const solicitarRecuperacaoSchema = z.object({
   email: z.string().email('E-mail inválido'),
+});
+
+// Schema para código de verificação
+const codigoVerificacaoSchema = z.object({
+  codigo: z.string()
+    .length(6, 'O código deve ter 6 dígitos')
+    .regex(/^\d+$/, 'O código deve conter apenas números'),
 });
 
 // Schema para redefinir senha
@@ -30,36 +37,55 @@ const redefinirSenhaSchema = z.object({
   path: ['confirmarSenha'],
 });
 
-type RecuperarSenhaData = z.infer<typeof recuperarSenhaSchema>;
+type SolicitarRecuperacaoData = z.infer<typeof solicitarRecuperacaoSchema>;
+type CodigoVerificacaoData = z.infer<typeof codigoVerificacaoSchema>;
 type RedefinirSenhaData = z.infer<typeof redefinirSenhaSchema>;
 
 export default function RecuperarSenhaPage() {
   const router = useRouter();
-  const [step, setStep] = useState<'solicitar' | 'verificar' | 'redefinir'>('solicitar');
-  const [verificandoTelefone, setVerificandoTelefone] = useState(false);
+  const [step, setStep] = useState<'solicitar' | 'codigo' | 'redefinir'>('solicitar');
+  const [codigoGerado, setCodigoGerado] = useState<string>('');
+  const [emailAtual, setEmailAtual] = useState<string>('');
+  const [tentativasCodigo, setTentativasCodigo] = useState(0);
+  const MAX_TENTATIVAS = 3;
   
   const {
-    findByEmail,
-    clienteFindByEmail,
-    loadingFindByEmail,
-    errorFindByEmail,
-    recuperarSenha,
-    clearFindByEmailError,
-    clearFindByEmailData
+    sendEmailVerification,
+    verifyRecoveryCode,
+    resetPassword,
+    verificador,
+    loadingEmail,
+    errorEmail,
+    clearEmailError,
   } = useAuthStore();
 
   // Formulário para solicitar recuperação
   const {
-    register: registerRecuperar,
-    handleSubmit: handleSubmitRecuperar,
-    formState: { errors: errorsRecuperar, isSubmitting: isSubmittingRecuperar },
-    setError: setErrorRecuperar,
-    watch: watchRecuperar,
-    reset: resetRecuperar,
-  } = useForm<RecuperarSenhaData>({
-    resolver: zodResolver(recuperarSenhaSchema),
+    register: registerSolicitar,
+    handleSubmit: handleSubmitSolicitar,
+    formState: { errors: errorsSolicitar, isSubmitting: isSubmittingSolicitar },
+    setError: setErrorSolicitar,
+    watch: watchSolicitar,
+    reset: resetSolicitar,
+  } = useForm<SolicitarRecuperacaoData>({
+    resolver: zodResolver(solicitarRecuperacaoSchema),
     defaultValues: {
       email: '',
+    },
+    mode: 'onChange',
+  });
+
+  // Formulário para código de verificação
+  const {
+    register: registerCodigo,
+    handleSubmit: handleSubmitCodigo,
+    formState: { errors: errorsCodigo, isSubmitting: isSubmittingCodigo },
+    watch: watchCodigo,
+    reset: resetCodigo,
+  } = useForm<CodigoVerificacaoData>({
+    resolver: zodResolver(codigoVerificacaoSchema),
+    defaultValues: {
+      codigo: '',
     },
     mode: 'onChange',
   });
@@ -86,124 +112,122 @@ export default function RecuperarSenhaPage() {
 
   // Observar a nova senha para validação em tempo real
   const novaSenha = watchRedefinir('novaSenha');
-  const email = watchRecuperar('email');
+  const email = watchSolicitar('email');
 
   // Limpar erros quando mudar de step
   useEffect(() => {
-    if (errorFindByEmail) {
-      clearFindByEmailError();
+    if (errorEmail) {
+      clearEmailError();
     }
-  }, [step, errorFindByEmail, clearFindByEmailError]);
+  }, [step, errorEmail, clearEmailError]);
 
-  const handleSolicitarRecuperacao = async (data: RecuperarSenhaData) => {
+  // Gerar código aleatório de 6 dígitos
+  const gerarCodigo = () => {
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    setCodigoGerado(codigo);
+    return codigo;
+  };
+
+  // Step 1: Solicitar recuperação e enviar código
+  const handleSolicitarRecuperacao = async (data: SolicitarRecuperacaoData) => {
     Swal.fire({
-      title: 'Verificando email...',
-      text: 'Por favor, aguarde enquanto verificamos sua conta.',
+      title: 'Enviando código de verificação...',
+      text: 'Por favor, aguarde enquanto enviamos o código para seu email.',
       allowOutsideClick: false,
+      showConfirmButton: false, // Remove o botão OK durante o loading
       didOpen: () => {
         Swal.showLoading();
       }
     });
 
     try {
-      const cliente = await findByEmail(data.email);
+      const codigo = gerarCodigo();
+      setEmailAtual(data.email);
+      
+      const resultado = await sendEmailVerification(data.email, codigo);
       
       Swal.close();
       
-      if (cliente) {
-        setStep('verificar');
+      if (resultado.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Código Enviado!',
+          html: `
+            <div style="text-align: center;">
+              <div style="width: 4rem; height: 4rem; background-color: #d1fae5; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                <svg style="width: 2rem; height: 2rem; color: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <p style="margin-bottom: 0.5rem; font-weight: 600;">Código enviado com sucesso!</p>
+              <p style="font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem;">
+                Enviamos um código de 6 dígitos para:
+                <br />
+                <span style="font-weight: 600; color: #111827;">${data.email}</span>
+              </p>
+              ${process.env.NODE_ENV === 'development' ? `
+                <div style="background-color: #f3f4f6; padding: 0.75rem; border-radius: 0.5rem; margin-top: 1rem;">
+                  <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">🚨 DESENVOLVIMENTO APENAS</p>
+                  <p style="font-weight: 600; font-size: 1.25rem; letter-spacing: 0.5em; color: #7c3aed;">${codigo}</p>
+                </div>
+              ` : ''}
+            </div>
+          `,
+          confirmButtonColor: '#7C3AED',
+          confirmButtonText: 'OK',
+          allowOutsideClick: false,
+        }).then(() => {
+          setStep('codigo');
+          setTentativasCodigo(0);
+        });
       }
     } catch (error: any) {
       Swal.close();
       
       Swal.fire({
         icon: 'error',
-        title: 'Email não encontrado',
-        text: error.message || 'Não encontramos uma conta com este email.',
+        title: 'Erro ao enviar código',
+        text: error.message || 'Não foi possível enviar o código de verificação.',
         confirmButtonColor: '#7C3AED',
+        confirmButtonText: 'OK',
       });
 
-      // Definir erro no formulário
-      setErrorRecuperar('email', {
+      setErrorSolicitar('email', {
         type: 'manual',
-        message: 'Email não encontrado no sistema',
+        message: 'Erro ao enviar código de verificação',
       });
     }
   };
 
-  const handleVerificarTelefone = async () => {
-    if (!clienteFindByEmail) return;
-    
-    setVerificandoTelefone(true);
-    
-    try {
-      const result = await Swal.fire({
-        title: 'Verificação de Segurança',
-        html: `
-          <div style="text-align: left;">
-            <p style="margin-bottom: 1rem;">Verificamos que sua conta está associada a:</p>
-            <div style="background-color: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-              <p style="font-weight: 600; color: #111827;">${clienteFindByEmail.nome}</p>
-              <p style="font-size: 0.875rem; color: #6b7280;">${clienteFindByEmail.numeroCliente}</p>
-            </div>
-            <p style="font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem;">
-              Por questões de segurança, confirme se este telefone está correto:
-            </p>
-            <div style="text-align: center; font-size: 1.125rem; font-weight: bold; color: #7c3aed;">
-              ${clienteFindByEmail.telefone || clienteFindByEmail.whatsapp || 'Não informado'}
-            </div>
-          </div>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Sim, está correto',
-        cancelButtonText: 'Não é meu',
-        confirmButtonColor: '#7C3AED',
-        cancelButtonColor: '#6B7280',
-        reverseButtons: true,
-      });
-
-      setVerificandoTelefone(false);
-      
-      if (result.isConfirmed) {
-        setStep('redefinir');
-      } else {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Contate o suporte',
-          text: 'Se este não é seu telefone, entre em contato com nossa equipe de suporte.',
-          confirmButtonColor: '#7C3AED',
-        });
-      }
-    } catch (error) {
-      setVerificandoTelefone(false);
-      console.error('Erro na verificação:', error);
-    }
-  };
-
-  const handleRedefinirSenha = async (data: RedefinirSenhaData) => {
-    if (!email || !clienteFindByEmail) return;
-
+  // Step 2: Verificar código
+// Step 2: Verificar código
+// Step 2: Verificar código - VERSÃO SIMPLIFICADA
+const handleVerificarCodigo = async (data: CodigoVerificacaoData) => {
+  if (!emailAtual) return;
+  
+  if (tentativasCodigo >= MAX_TENTATIVAS) {
     Swal.fire({
-      title: 'Redefinindo senha...',
-      text: 'Por favor, aguarde enquanto atualizamos sua senha.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      icon: 'error',
+      title: 'Muitas tentativas',
+      text: 'Você excedeu o número máximo de tentativas. Solicite um novo código.',
+      confirmButtonColor: '#7C3AED',
+      confirmButtonText: 'OK',
+    }).then(() => {
+      setStep('solicitar');
+      resetCodigo();
+      setTentativasCodigo(0);
     });
+    return;
+  }
 
-    try {
-      // A senha atual deve ser fornecida pelo backend ou por um processo de recuperação
-      await recuperarSenha(email, {
-        senhaAtual: 'TEMP_RECOVERY_PASSWORD', // O backend deve ter um processo para lidar com recuperação
-        novaSenha: data.novaSenha,
-      });
-
-      Swal.close();
-      
-      await Swal.fire({
+  try {
+    const isValid = await verifyRecoveryCode(emailAtual, data.codigo);
+    
+    if (isValid) {
+      // ✅ APENAS SweetAlert com botão OK, SEM loading
+      Swal.fire({
         icon: 'success',
-        title: 'Senha Redefinida!',
+        title: 'Código Válido!',
         html: `
           <div style="text-align: center;">
             <div style="width: 4rem; height: 4rem; background-color: #d1fae5; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
@@ -211,42 +235,162 @@ export default function RecuperarSenhaPage() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
             </div>
-            <p style="margin-bottom: 0.5rem;">Sua senha foi redefinida com sucesso!</p>
-            <p style="font-size: 0.875rem; color: #6b7280;">Você já pode fazer login com sua nova senha.</p>
+            <p style="font-weight: 600; color: #111827; margin-bottom: 0.5rem;">Código verificado com sucesso!</p>
+            <p style="font-size: 0.875rem; color: #6b7280;">Agora você pode redefinir sua senha.</p>
           </div>
         `,
         confirmButtonColor: '#7C3AED',
+        confirmButtonText: 'OK',
+        allowOutsideClick: false,
+      }).then(() => {
+        setStep('redefinir');
       });
+    } else {
+      setTentativasCodigo(prev => prev + 1);
+      const tentativasRestantes = MAX_TENTATIVAS - (tentativasCodigo + 1);
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'Código Inválido',
+        html: `
+          <div style="text-align: center;">
+            <p style="margin-bottom: 1rem;">O código inserido está incorreto.</p>
+            <p style="font-size: 0.875rem; color: #6b7280;">
+              Tentativas restantes: <span style="font-weight: 600; color: ${tentativasRestantes === 0 ? '#ef4444' : '#f59e0b'}">${tentativasRestantes}</span>
+            </p>
+          </div>
+        `,
+        confirmButtonColor: '#7C3AED',
+        confirmButtonText: 'OK',
+      });
+    }
+  } catch (error: any) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Erro na verificação',
+      text: error.message || 'Ocorreu um erro ao verificar o código.',
+      confirmButtonColor: '#7C3AED',
+      confirmButtonText: 'OK',
+    });
+  }
+};
+  // Step 3: Redefinir senha
+  const handleRedefinirSenha = async (data: RedefinirSenhaData) => {
+    if (!emailAtual) return;
 
-      // Limpar dados e redirecionar
-      clearFindByEmailData();
-      resetRecuperar();
-      resetRedefinir();
-      router.push('/auth/login');
-    } catch (error: any) {
+    Swal.fire({
+      title: 'Redefinindo senha...',
+      text: 'Por favor, aguarde enquanto atualizamos sua senha.',
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const resultado = await resetPassword(emailAtual, data.novaSenha);
+
       Swal.close();
       
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          'Ocorreu um erro ao redefinir sua senha.';
+      if (resultado.success) {
+        await Swal.fire({
+          icon: 'success',
+          title: 'Senha Redefinida!',
+          html: `
+            <div style="text-align: center;">
+              <div style="width: 4rem; height: 4rem; background-color: #d1fae5; border-radius: 9999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                <svg style="width: 2rem; height: 2rem; color: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <p style="margin-bottom: 0.5rem; font-weight: 600;">Senha redefinida com sucesso!</p>
+              <p style="font-size: 0.875rem; color: #6b7280;">Você já pode fazer login com sua nova senha.</p>
+            </div>
+          `,
+          confirmButtonColor: '#7C3AED',
+          confirmButtonText: 'OK',
+        }).then(() => {
+          // Limpar tudo e redirecionar
+          resetSolicitar();
+          resetCodigo();
+          resetRedefinir();
+          setEmailAtual('');
+          setCodigoGerado('');
+          setTentativasCodigo(0);
+          
+          router.push('/auth/login');
+        });
+      }
+    } catch (error: any) {
+      Swal.close();
       
       Swal.fire({
         icon: 'error',
         title: 'Erro ao redefinir senha',
-        text: errorMessage,
+        text: error.message || 'Ocorreu um erro ao redefinir sua senha.',
         confirmButtonColor: '#7C3AED',
+        confirmButtonText: 'OK',
       });
     }
   };
 
   const handleVoltar = () => {
-    if (step === 'verificar' || step === 'redefinir') {
-      setStep('solicitar');
-      clearFindByEmailData();
-      resetRecuperar();
-      resetRedefinir();
+    if (step === 'codigo' || step === 'redefinir') {
+      if (step === 'redefinir') {
+        setStep('codigo');
+        resetRedefinir();
+      } else {
+        setStep('solicitar');
+        resetCodigo();
+        setTentativasCodigo(0);
+      }
     } else {
       router.push('/auth/login');
+    }
+  };
+
+  const handleReenviarCodigo = async () => {
+    if (!emailAtual) return;
+
+    Swal.fire({
+      title: 'Reenviando código...',
+      text: 'Por favor, aguarde enquanto enviamos um novo código.',
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const codigo = gerarCodigo();
+      const resultado = await sendEmailVerification(emailAtual, codigo);
+      
+      Swal.close();
+      
+      if (resultado.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Código Reenviado!',
+          text: 'Um novo código foi enviado para seu email.',
+          confirmButtonColor: '#7C3AED',
+          confirmButtonText: 'OK',
+        }).then(() => {
+          resetCodigo();
+          setTentativasCodigo(0);
+        });
+      }
+    } catch (error: any) {
+      Swal.close();
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro ao reenviar código',
+        text: error.message || 'Não foi possível reenviar o código.',
+        confirmButtonColor: '#7C3AED',
+        confirmButtonText: 'OK',
+      });
     }
   };
 
@@ -276,21 +420,21 @@ export default function RecuperarSenhaPage() {
             <>
               <CardTitle className="text-3xl font-bold text-center text-gray-900">Recuperar Senha</CardTitle>
               <CardDescription className="text-center text-gray-600">
-                Digite seu e-mail para verificar sua conta.
+                Digite seu e-mail para receber um código de verificação.
               </CardDescription>
             </>
           )}
 
-          {step === 'verificar' && clienteFindByEmail && (
+          {step === 'codigo' && (
             <>
-              <CardTitle className="text-3xl font-bold text-center text-gray-900">Verificação de Segurança</CardTitle>
+              <CardTitle className="text-3xl font-bold text-center text-gray-900">Verificar Código</CardTitle>
               <CardDescription className="text-center text-gray-600">
-                Confirme seus dados antes de prosseguir.
+                Digite o código de 6 dígitos enviado para seu email.
               </CardDescription>
             </>
           )}
 
-          {step === 'redefinir' && clienteFindByEmail && (
+          {step === 'redefinir' && (
             <>
               <CardTitle className="text-3xl font-bold text-center text-gray-900">Nova Senha</CardTitle>
               <CardDescription className="text-center text-gray-600">
@@ -303,7 +447,7 @@ export default function RecuperarSenhaPage() {
         <CardContent>
           {/* STEP 1: Solicitar email */}
           {step === 'solicitar' && (
-            <form onSubmit={handleSubmitRecuperar(handleSolicitarRecuperacao)} className="space-y-5">
+            <form onSubmit={handleSubmitSolicitar(handleSolicitarRecuperacao)} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700 font-medium flex items-center gap-2">
                   <Mail className="w-4 h-4" />
@@ -313,22 +457,22 @@ export default function RecuperarSenhaPage() {
                   id="email" 
                   type="email" 
                   placeholder="seu@email.com" 
-                  disabled={isSubmittingRecuperar || loadingFindByEmail}
+                  disabled={isSubmittingSolicitar || loadingEmail}
                   className={`border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${
-                    errorsRecuperar.email ? 'border-red-500' : ''
+                    errorsSolicitar.email ? 'border-red-500' : ''
                   }`}
-                  {...registerRecuperar('email')}
+                  {...registerSolicitar('email')}
                 />
-                {errorsRecuperar.email && (
+                {errorsSolicitar.email && (
                   <p className="text-red-500 text-sm flex items-center gap-1">
                     <X className="w-3 h-3" />
-                    {errorsRecuperar.email.message}
+                    {errorsSolicitar.email.message}
                   </p>
                 )}
-                {errorFindByEmail && (
+                {errorEmail && (
                   <p className="text-red-500 text-sm flex items-center gap-1">
                     <X className="w-3 h-3" />
-                    {errorFindByEmail}
+                    {errorEmail}
                   </p>
                 )}
               </div>
@@ -336,75 +480,109 @@ export default function RecuperarSenhaPage() {
               <Button 
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold" 
-                disabled={isSubmittingRecuperar || loadingFindByEmail}
+                disabled={isSubmittingSolicitar || loadingEmail}
               >
-                {(isSubmittingRecuperar || loadingFindByEmail) ? (
+                {loadingEmail ? (
                   <span className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Verificando...
+                    Enviando código...
                   </span>
-                ) : 'Verificar Email'}
+                ) : 'Enviar Código'}
               </Button>
             </form>
           )}
 
-          {/* STEP 2: Verificar dados do cliente */}
-          {step === 'verificar' && clienteFindByEmail && (
+          {/* STEP 2: Digitar código */}
+          {step === 'codigo' && (
             <div className="space-y-5">
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-purple-600" />
+                    <Mail className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">{clienteFindByEmail.nome}</p>
-                    <p className="text-sm text-gray-600">Cliente: {clienteFindByEmail.numeroCliente}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{clienteFindByEmail.email}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {clienteFindByEmail.telefone || clienteFindByEmail.whatsapp || 'Telefone não informado'}
-                    </span>
+                    <p className="font-semibold text-gray-900">Verificação por Email</p>
+                    <p className="text-sm text-gray-600">{emailAtual}</p>
                   </div>
                 </div>
 
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
                   <p className="text-sm text-blue-700 flex items-start gap-2">
-                    <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    Por segurança, confirmaremos se este telefone está correto antes de redefinir sua senha.
+                    <Key className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    Enviamos um código de 6 dígitos para seu email. Digite-o abaixo.
                   </p>
+                </div>
+
+                <div className="text-sm text-gray-600">
+                  <p className="font-medium">Tentativas: <span className={`font-bold ${tentativasCodigo >= MAX_TENTATIVAS ? 'text-red-600' : 'text-amber-600'}`}>
+                    {tentativasCodigo}/{MAX_TENTATIVAS}
+                  </span></p>
+                  {tentativasCodigo > 0 && (
+                    <p className="text-amber-600 text-xs mt-1">
+                      Código inválido. Verifique e tente novamente.
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <Button 
-                onClick={handleVerificarTelefone}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold"
-                disabled={verificandoTelefone}
-              >
-                {verificandoTelefone ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Verificando...
-                  </span>
-                ) : 'Confirmar e Continuar'}
-              </Button>
+              <form onSubmit={handleSubmitCodigo(handleVerificarCodigo)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="codigo" className="text-gray-700 font-medium flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    Código de Verificação *
+                  </Label>
+                  <Input 
+                    id="codigo" 
+                    type="text" 
+                    placeholder="000000"
+                    maxLength={6}
+                    disabled={isSubmittingCodigo}
+                    className={`text-center text-2xl tracking-widest font-mono border-gray-300 focus:border-purple-600 focus:ring-purple-600 ${
+                      errorsCodigo.codigo ? 'border-red-500' : ''
+                    }`}
+                    {...registerCodigo('codigo')}
+                  />
+                  {errorsCodigo.codigo && (
+                    <p className="text-red-500 text-sm flex items-center gap-1">
+                      <X className="w-3 h-3" />
+                      {errorsCodigo.codigo.message}
+                    </p>
+                  )}
+                </div>
+
+                <Button 
+                  type="submit"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-base font-semibold"
+                  disabled={isSubmittingCodigo || tentativasCodigo >= MAX_TENTATIVAS}
+                >
+                  {isSubmittingCodigo ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Verificando...
+                    </span>
+                  ) : 'Verificar Código'}
+                </Button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleReenviarCodigo}
+                    className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                    disabled={loadingEmail}
+                  >
+                    {loadingEmail ? 'Enviando...' : 'Não recebeu o código? Clique para reenviar'}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
           {/* STEP 3: Redefinir senha */}
-          {step === 'redefinir' && clienteFindByEmail && (
+          {step === 'redefinir' && (
             <form onSubmit={handleSubmitRedefinir(handleRedefinirSenha)} className="space-y-5">
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-600 mb-2">Redefinindo senha para:</p>
-                <p className="font-semibold text-gray-900">{clienteFindByEmail.email}</p>
+                <p className="font-semibold text-gray-900">{emailAtual}</p>
               </div>
 
               <div className="space-y-2">
@@ -523,6 +701,20 @@ export default function RecuperarSenhaPage() {
               {step === 'solicitar' ? 'Voltar para o login' : 'Voltar'}
             </button>
           </div>
+
+          {/* Mostrar status do verificador */}
+          {verificador && (
+            <div className={`mt-4 p-3 rounded-md ${verificador.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <p className={`text-sm flex items-center gap-2 ${verificador.success ? 'text-green-700' : 'text-red-700'}`}>
+                {verificador.success ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <X className="w-4 h-4" />
+                )}
+                {verificador.message}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

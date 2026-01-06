@@ -83,8 +83,21 @@ export interface IALoginData {
   username: string;
   password: string;
 }
-
+export interface VerificacaoSucess {
+  success: boolean;
+  message: string;
+}
 export interface AuthStore {
+  //recuperar
+  verificador: VerificacaoSucess | null;
+  sendEmailVerification: (email: string, code: string) => Promise<VerificacaoSucess>;
+  verifyRecoveryCode:  (email: string, userCode: string)=> Promise<boolean>;
+  resetPassword: (email: string, newPassword: string)=>Promise<VerificacaoSucess>;
+  loadingEmail: boolean;
+  errorEmail: string | null; // Corrigido nome
+
+
+
   userLogin: UserLogin | null;
   loading: boolean;
   error: string | null;
@@ -95,6 +108,7 @@ export interface AuthStore {
   loadingFindByEmail: boolean;
   errorFindByEmail: string | null;
   findByEmail: (email: string) => Promise<ClienteBase>; // ✅ Adiciona parâmetro email
+  clearEmailError: () => void;
 
   login: (data: IALoginData) => Promise<void>;
   refreshToken: () => Promise<void>;
@@ -112,6 +126,7 @@ export interface AuthStore {
   clearError: () => void;
 }
 
+
 const COOKIE_OPTIONS = {
   expires: 7,
   secure: process.env.NODE_ENV === 'production',
@@ -122,6 +137,9 @@ const COOKIE_OPTIONS = {
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
+      verificador: null,
+      loadingEmail: false,
+      errorEmail: null,
 
       clienteFindByEmail: null,
       loadingFindByEmail: false,
@@ -171,6 +189,215 @@ export const useAuthStore = create<AuthStore>()(
         set({ isInitialized: true });
         console.log("✅ Inicialização completa");
       },
+      sendEmailVerification: async (email: string, code: string) => {
+        console.log("📧 ========== ENVIANDO CÓDIGO DE RECUPERAÇÃO ==========");
+        console.log("📧 Email:", email);
+        console.log("📧 Código:", code);
+
+        set({
+          loadingEmail: true,
+          errorEmail: null,
+          verificador: null
+        });
+
+        try {
+          // Primeiro verifica se o email existe no sistema
+          const cliente = await get().findByEmail(email);
+          console.log("✅ Cliente encontrado:", cliente.nome);
+
+          // Gera o código de verificação (6 dígitos)
+          const verificationCode = code || Math.floor(100000 + Math.random() * 900000).toString();
+          
+          // Salva o código localmente para verificação posterior
+          const recoveryData = {
+            code: verificationCode,
+            email: email,
+            expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutos
+            attempts: 0
+          };
+          
+          sessionStorage.setItem('recoveryData', JSON.stringify(recoveryData));
+          console.log("✅ Código salvo localmente:", verificationCode);
+
+          // Envia o código por email via API
+          console.log("📤 Enviando código para o servidor...");
+          const response = await publicApi.post(
+            `/clientes/send-recovery-code/${encodeURIComponent(email)}`,
+            { code: verificationCode }
+          );
+
+          console.log("✅ ========== CÓDIGO ENVIADO COM SUCESSO ==========");
+          console.log("✅ Resposta:", response.data);
+
+          set({
+            verificador: {
+              success: true,
+              message: response.data.message || "Código enviado com sucesso"
+            },
+            loadingEmail: false,
+            errorEmail: null
+          });
+
+          // Retorna também o código para o componente (apenas em desenvolvimento)
+          if (process.env.NODE_ENV === 'development') {
+            console.log("🔍 [DEV] Código gerado:", verificationCode);
+          }
+
+          return {
+            success: true,
+            message: response.data.message || "Código enviado com sucesso",
+            // Em dev, retorna o código para facilitar testes
+            code: process.env.NODE_ENV === 'development' ? verificationCode : undefined
+          };
+          
+        } catch (error: any) {
+          console.error("❌ ========== ERRO AO ENVIAR CÓDIGO ==========");
+          console.error("❌ Status:", error.response?.status);
+          console.error("❌ Mensagem:", error.response?.data?.message || error.message);
+
+          const errorMessage = error.response?.data?.message || 
+                              error.response?.data?.error || 
+                              error.message || 
+                              "Erro ao enviar código de verificação";
+
+          set({
+            loadingEmail: false,
+            errorEmail: errorMessage,
+            verificador: null
+          });
+
+          // Limpa dados de recuperação em caso de erro
+          sessionStorage.removeItem('recoveryData');
+          
+          throw new Error(errorMessage);
+        }
+      },
+      verifyRecoveryCode: async (email: string, userCode: string): Promise<boolean> => {
+        console.log("🔍 ========== VERIFICANDO CÓDIGO ==========");
+        console.log("🔍 Email:", email);
+        console.log("🔍 Código digitado:", userCode);
+
+        const recoveryDataStr = sessionStorage.getItem('recoveryData');
+        
+        if (!recoveryDataStr) {
+          console.error("❌ Nenhum código de recuperação encontrado");
+          set({ errorEmail: "Código expirado. Solicite um novo." });
+          return false;
+        }
+
+        const recoveryData = JSON.parse(recoveryDataStr);
+        
+        // Verifica se é para o mesmo email
+        if (recoveryData.email !== email) {
+          console.error("❌ Email não corresponde");
+          set({ errorEmail: "Código não corresponde ao email." });
+          return false;
+        }
+
+        // Verifica expiração
+        if (Date.now() > recoveryData.expiresAt) {
+          console.error("❌ Código expirado");
+          sessionStorage.removeItem('recoveryData');
+          set({ errorEmail: "Código expirado. Solicite um novo." });
+          return false;
+        }
+
+        // Verifica tentativas
+        if (recoveryData.attempts >= 3) {
+          console.error("❌ Muitas tentativas");
+          sessionStorage.removeItem('recoveryData');
+          set({ errorEmail: "Muitas tentativas. Solicite um novo código." });
+          return false;
+        }
+
+        // Compara os códigos
+        const isValid = recoveryData.code === userCode;
+
+        if (isValid) {
+          console.log("✅ Código válido!");
+          // Marca como verificado
+          sessionStorage.setItem('recoveryVerified', 'true');
+          sessionStorage.setItem('recoveryEmail', email);
+          
+          set({
+            verificador: {
+              success: true,
+              message: "Código verificado com sucesso"
+            },
+            errorEmail: null
+          });
+          
+          return true;
+        } else {
+          console.error("❌ Código inválido");
+          // Incrementa tentativas
+          recoveryData.attempts++;
+          sessionStorage.setItem('recoveryData', JSON.stringify(recoveryData));
+          
+          set({
+            errorEmail: `Código inválido. Tentativas restantes: ${3 - recoveryData.attempts}`,
+            verificador: null
+          });
+          
+          return false;
+        }
+      },
+
+      // Método para redefinir senha após verificação
+      resetPassword: async (email: string, newPassword: string) => {
+        console.log("🔐 ========== REDEFININDO SENHA ==========");
+
+        // Verifica se o email foi verificado
+        const isVerified = sessionStorage.getItem('recoveryVerified');
+        const verifiedEmail = sessionStorage.getItem('recoveryEmail');
+        
+        if (!isVerified || verifiedEmail !== email) {
+          throw new Error("Email não verificado ou código expirado");
+        }
+
+        set({ loading: true, error: null });
+
+        try {
+          // Chama o endpoint de recuperação de senha
+          const response = await publicApi.patch(
+            `/auth/cliente/recuperar-senha/${encodeURIComponent(email)}`,
+            { novaSenha: newPassword }
+          );
+
+          console.log("✅ Senha redefinida com sucesso");
+
+          // Limpa dados de recuperação
+          sessionStorage.removeItem('recoveryData');
+          sessionStorage.removeItem('recoveryVerified');
+          sessionStorage.removeItem('recoveryEmail');
+
+          set({
+            loading: false,
+            verificador: null,
+            error: null
+          });
+
+          return {
+            success: true,
+            message: "Senha redefinida com sucesso"
+          };
+          
+        } catch (error: any) {
+          console.error("❌ Erro ao redefinir senha:", error);
+
+          const errorMessage = error.response?.data?.message || 
+                              error.response?.data?.error || 
+                              "Erro ao redefinir senha";
+
+          set({
+            loading: false,
+            error: errorMessage
+          });
+
+          throw new Error(errorMessage);
+        }
+      },
+
       findByEmail: async (email: string) => {
         console.log("🔵 ========== BUSCANDO CLIENTE POR EMAIL ==========");
         console.log("🔵 Email:", email);
@@ -274,7 +501,6 @@ export const useAuthStore = create<AuthStore>()(
           throw error;
         }
       },
-
       refreshToken: async () => {
         console.log("🔄 Renovando token...");
         const currentRefreshToken = get().userLogin?.refreshToken;
@@ -450,7 +676,9 @@ export const useAuthStore = create<AuthStore>()(
         console.log("🧹 Limpando erro do findByEmail");
         set({ errorFindByEmail: null });
       },
-
+clearEmailError: () => {
+        set({ errorEmail: null });
+      },
       clearFindByEmailData: () => {
         console.log("🧹 Limpando dados do findByEmail");
         set({
