@@ -190,21 +190,13 @@ export const useAuthStore = create<AuthStore>()(
         console.log("✅ Inicialização completa");
       },
       sendEmailVerification: async (email: string, code: string) => {
-        console.log("📧 ========== ENVIANDO CÓDIGO DE RECUPERAÇÃO ==========");
-        console.log("📧 Email:", email);
-        console.log("📧 Código:", code);
-
         set({
           loadingEmail: true,
           errorEmail: null,
           verificador: null
         });
 
-        try {
-          // Primeiro verifica se o email existe no sistema
-          const cliente = await get().findByEmail(email);
-          console.log("✅ Cliente encontrado:", cliente.nome);
-
+        try { 
           // Gera o código de verificação (6 dígitos)
           const verificationCode = code || Math.floor(100000 + Math.random() * 900000).toString();
           

@@ -166,10 +166,7 @@ export default function RecuperarSenhaPage() {
                 <span style="font-weight: 600; color: #111827;">${data.email}</span>
               </p>
               ${process.env.NODE_ENV === 'development' ? `
-                <div style="background-color: #f3f4f6; padding: 0.75rem; border-radius: 0.5rem; margin-top: 1rem;">
-                  <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">🚨 DESENVOLVIMENTO APENAS</p>
-                  <p style="font-weight: 600; font-size: 1.25rem; letter-spacing: 0.5em; color: #7c3aed;">${codigo}</p>
-                </div>
+               
               ` : ''}
             </div>
           `,
@@ -216,7 +213,7 @@ const handleVerificarCodigo = async (data: CodigoVerificacaoData) => {
       setStep('solicitar');
       resetCodigo();
       setTentativasCodigo(0);
-    });
+    }); 
     return;
   }
 
