@@ -194,6 +194,19 @@ export interface DesportoEstatisticas {
 }
 
 interface IUseDesportoStore {
+
+  // Novas propriedades para filtros e paginação
+  desportosPaginados: DesportoCompletoComPaginacao | null;
+  filtroAtualDesporto: FiltroDesporto;
+  loadingFiltradoDesporto: boolean;
+  errorFiltradoDesporto: string | null;
+
+  // Novas ações
+  getDesportosFiltrados: (filtro: FiltroDesporto) => Promise<DesportoCompletoComPaginacao>;
+  aplicarFiltroDesporto: (novoFiltro: Partial<FiltroDesporto>) => Promise<void>;
+  limparFiltroDesporto: () => Promise<void>;
+  mudarPaginaDesporto: (pagina: number) => Promise<void>;
+
   desportosFuturos: IDesportoRetorno[];
   fetchDesportosFuturos: (email: string) => Promise<IDesportoRetorno[]>;
   errorFuturos: boolean;
@@ -218,6 +231,59 @@ interface IUseDesportoStore {
   createDesporto: (data: ICreateDesporto) => Promise<IDesportoRetorno>;
   loading: boolean;
 }
+// storage/types/filtro-desporto.type.ts
+export enum OrdenacaoDesporto {
+  DATA_INICIO_ASC = 'dataInicio_asc',
+  DATA_INICIO_DESC = 'dataInicio_desc',
+  DATA_CRIACAO_ASC = 'createdAt_asc',
+  DATA_CRIACAO_DESC = 'createdAt_desc',
+  NOME_EQUIPE_ASC = 'nomeEquipe_asc',
+  NOME_EQUIPE_DESC = 'nomeEquipe_desc',
+}
+
+export interface FiltroDesporto {
+  email: string;
+
+  search?: string;
+
+  dataInicio?: Date | string;
+  dataFim?: Date | string;
+
+  status?: string;
+  statusPagamento?: string;
+
+  campoId?: string;
+  tipoAtividadeId?: string;
+
+  ordenarPor?: OrdenacaoDesporto;
+
+  pagina?: number;
+  itensPorPagina?: number;
+}
+
+export const FILTRO_DESPORTO_DEFAULT: FiltroDesporto = {
+  email: '',
+  ordenarPor: OrdenacaoDesporto.DATA_CRIACAO_DESC,
+  pagina: 1,
+  itensPorPagina: 10
+};
+
+// Interface para resposta paginada
+export interface DesportoCompletoComPaginacao {
+  desportos: IDesportoRetorno[];
+  paginacao: {
+    paginaAtual: number;
+    itensPorPagina: number;
+    totalItens: number;
+    totalPaginas: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+    nextPage: number | null;
+    prevPage: number | null;
+  };
+  filtrosAplicados: FiltroDesporto;
+}
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3009';
 
@@ -256,6 +322,11 @@ clienteApi.interceptors.response.use(
 );
 
 export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
+  desportosPaginados: null,
+  filtroAtualDesporto: FILTRO_DESPORTO_DEFAULT,
+  loadingFiltradoDesporto: false,
+  errorFiltradoDesporto: null,
+
   // Estado inicial
   desportosFuturos: [],
   desportoEstatistica: null,
@@ -270,7 +341,101 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
   desportoEspecifico: null,
   loadingEspecifico: false,
   errorEspecifico: null,
+  getDesportosFiltrados: async (filtro: FiltroDesporto) => {
+    console.log("🔵 ========== BUSCANDO DESPORTOS FILTRADOS ==========");
+    console.log("🔵 Filtro:", filtro);
 
+    set({ loadingFiltradoDesporto: true, errorFiltradoDesporto: null });
+
+    try {
+      const params: any = {
+        email: filtro.email,
+        pagina: filtro.pagina || 1,
+        itensPorPagina: filtro.itensPorPagina || 10,
+      };
+
+      // Adicionar parâmetros apenas se existirem
+      if (filtro.ordenarPor) params.ordenarPor = filtro.ordenarPor;
+      if (filtro.dataInicio) params.dataInicio = new Date(filtro.dataInicio).toISOString();
+      if (filtro.dataFim) params.dataFim = new Date(filtro.dataFim).toISOString();
+      if (filtro.status) params.status = filtro.status;
+      if (filtro.statusPagamento) params.statusPagamento = filtro.statusPagamento;
+      if (filtro.campoId) params.campoId = filtro.campoId;
+      if (filtro.tipoAtividadeId) params.tipoAtividadeId = filtro.tipoAtividadeId;
+      if (filtro.search) params.search = filtro.search;
+
+      const response = await clienteApi.get<DesportoCompletoComPaginacao>(
+        `/desporto-portal/filtrados`,
+        { params }
+      );
+
+      set({
+        desportosPaginados: response.data,
+        filtroAtualDesporto: filtro,
+        loadingFiltradoDesporto: false,
+        errorFiltradoDesporto: null,
+      });
+
+      console.log("✅ Desportos filtrados carregados:", response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ Erro ao buscar desportos filtrados:", error);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        'Erro ao buscar desportos filtrados';
+
+      set({
+        loadingFiltradoDesporto: false,
+        errorFiltradoDesporto: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+
+  // ✅ Aplicar filtro
+ aplicarFiltroDesporto: async (novoFiltro: Partial<FiltroDesporto>) => {
+  const { filtroAtualDesporto } = get();
+
+  // Converter 'todos' para undefined (string vazia)
+  const filtroProcessado = {
+    ...novoFiltro,
+    status: novoFiltro.status === 'todos' ? undefined : novoFiltro.status,
+    statusPagamento: novoFiltro.statusPagamento === 'todos' ? undefined : novoFiltro.statusPagamento,
+    search: novoFiltro.search === '' ? undefined : novoFiltro.search,
+    pagina: 1, // Sempre voltar para página 1 ao aplicar filtro
+  };
+
+  const filtroCompleto = {
+    ...filtroAtualDesporto,
+    ...filtroProcessado,
+  };
+
+  await get().getDesportosFiltrados(filtroCompleto);
+},
+
+  // ✅ Limpar filtro
+  limparFiltroDesporto: async () => {
+    const { filtroAtualDesporto } = get();
+    const filtroLimpo = {
+      ...FILTRO_DESPORTO_DEFAULT,
+      email: filtroAtualDesporto.email, // Mantém o email
+    };
+
+    await get().getDesportosFiltrados(filtroLimpo);
+  },
+
+  // ✅ Mudar página
+  mudarPaginaDesporto: async (pagina: number) => {
+    const { filtroAtualDesporto } = get();
+    const novoFiltro = {
+      ...filtroAtualDesporto,
+      pagina,
+    };
+
+    await get().getDesportosFiltrados(novoFiltro);
+  },
   // ✅ MÉTODO para buscar desporto específico
   fetchDesportoEspecifico: async (email: string, id: string) => {
     console.log("🔵 ========== BUSCANDO DESPORTO ESPECÍFICO ==========");

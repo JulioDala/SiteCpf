@@ -202,6 +202,98 @@ export interface GetReservaEspecificaResponse {
   };
 }
 
+
+export interface FiltroClienteReservas {
+  numeroCliente: string;
+
+  dataInicio?: Date | string;
+  dataFim?: Date | string;
+
+  status?: string;
+  paymentStatus?: string;
+
+  espacoId?: string;
+  eventoId?: string;
+
+  ordenarPor?: OrdenacaoReservaCliente;
+
+  pagina?: number;
+  itensPorPagina?: number;
+
+  search?: string;
+}
+
+export interface ClienteCompletoComPaginacao {
+  cliente: any;
+  reservas: ReservaCompleta[];
+  totalReservas: number;
+  totalValorReservasPagina: number;
+  totalPagoPagina: number;
+  totalPendentePagina: number;
+  paginacao: {
+    paginaAtual: number;
+    itensPorPagina: number;
+    totalItens: number;
+    totalPaginas: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+    nextPage: number | null;
+    prevPage: number | null;
+  };
+}
+// storage/types/filtro-cliente-reservas.type.ts
+export enum OrdenacaoReservaCliente {
+  DATA_ASC = 'data_asc',
+  DATA_DESC = 'data_desc',
+  VALOR_ASC = 'valor_asc',
+  VALOR_DESC = 'valor_desc',
+  DATA_CRIACAO_ASC = 'createdAt_asc',
+  DATA_CRIACAO_DESC = 'createdAt_desc'
+}
+
+export enum StatusReserva {
+  CONCLUIDA = 'Concluída',
+  CONFIRMADA = 'Confirmada',
+  PENDENTE = 'Pendente',
+  CANCELADA = 'Cancelada',
+  PROCESSADA = 'Processada',
+  RASCUNHO = 'Rascunho'
+}
+
+export enum StatusPagamentoReserva {
+  PENDENTE = 'Pendente',
+  PARCIAL = 'Parcial',
+  PAGO = 'Pago',
+  VENCIDA = 'Vencida',
+  REEMBOLSADO = 'Reembolsado'
+}
+
+export interface FiltroClienteReservas {
+  numeroCliente: string;
+
+  dataInicio?: Date | string;
+  dataFim?: Date | string;
+
+  status?: string;
+  paymentStatus?: string;
+
+  espacoId?: string;
+  eventoId?: string;
+
+  ordenarPor?: OrdenacaoReservaCliente;
+
+  pagina?: number;
+  itensPorPagina?: number;
+
+  search?: string;
+}
+
+export const FILTRO_CLIENTE_RESERVAS_DEFAULT: FiltroClienteReservas = {
+  numeroCliente: '',
+  ordenarPor: OrdenacaoReservaCliente.DATA_DESC,
+  pagina: 1,
+  itensPorPagina: 10
+};
 export function normalizarReserva(reserva: ReservaCompleta): ReservaCompleta {
   return {
     ...reserva,
@@ -249,12 +341,93 @@ clienteApi.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+//================  CALENDARIO GERAL=========================
+export interface DiaCalendarioGeral {
+  dia: number;
+  data: string; // YYYY-MM-DD
+  ocupacao: {
+    percentual: number;
+    totalHorarios: number;
+    horariosOcupados: number;
+    horariosDisponiveis: number;
+    nivel: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CHEIO';
+  };
+  temReservas: boolean;
+  totalReservas: number;
+  horariosOcupados: Array<{
+    horario: string;
+    reservaId: string;
+    espaco: string;
+    evento: string;
+    status: StatusReserva;
+    participantes: number;
+    periodo: string;
+  }>;
+  horariosDisponiveis: string[];
+  reservasPorEspaco: Array<{
+    nome: string;
+    reservas: Array<{
+      id: string;
+      horario: string;
+      evento: string;
+      status: StatusReserva;
+      participantes: number;
+    }>;
+    totalReservas: number;
+  }>;
+  feriado: boolean;
+  fimDeSemana: boolean;
+  vazio?: boolean;
+}
+
+export interface CalendarioGeralResponse {
+  calendario: {
+    mes: number;
+    ano: number;
+    nomeMes: string;
+    dias: DiaCalendarioGeral[];
+    semanas: DiaCalendarioGeral[][];
+    totalDias: number;
+    diasUteis: number;
+  };
+  estatisticas: {
+    totalReservas: number;
+    ocupacaoMedia: number;
+    horariosMaisOcupados: Array<{
+      hora: string;
+      reservas: number;
+    }>;
+    diasMaisOcupados: Array<{
+      data: string;
+      reservas: number;
+    }>;
+    porEspaco: Array<{
+      nome: string;
+      reservas: number;
+    }>;
+    porStatus: Record<StatusReserva, number>;
+  };
+  horariosPadrao: {
+    inicio: string;
+    fim: string;
+    intervalo: number;
+  };
+}
 
 // ============ INTERFACES DO STORE ============
 
 export interface ClienteReservasStore {
 
+// Estado do calendário geral
+  calendarioGeral: CalendarioGeralResponse | null;
+  loadingCalendarioGeral: boolean;
 
+  // ... outros estados existentes ...
+
+  // Ações do calendário geral
+  getCalendarioGeral: (mes?: number, ano?: number, espacoId?: string) => Promise<CalendarioGeralResponse>;
+  limparCalendarioGeral: () => void;
+  
   clientedata: ClienteBase;
   // Estado
   clienteCompleto: GetClienteCompletoPopulateResponse | null;
@@ -263,7 +436,14 @@ export interface ClienteReservasStore {
   loading: boolean;
   error: string | null;
 
+  reservasPaginadas: ClienteCompletoComPaginacao | null;
+  filtroAtual: FiltroClienteReservas;
+  loadingFiltrado: boolean;
 
+  limparFiltro: () => Promise<void>;
+  getClienteCompletoFiltrado: (filtro: FiltroClienteReservas) => Promise<ClienteCompletoComPaginacao>;
+  aplicarFiltro: (novoFiltro: Partial<FiltroClienteReservas>) => Promise<void>;
+  mudarPagina: (pagina: number) => Promise<void>;
 
   // Ações
   createPortal: (clientedata: any, password: string) => Promise<ClienteBase>;
@@ -278,7 +458,15 @@ export interface ClienteReservasStore {
 
 // ============ STORE ============
 
-export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
+export const useClienteReservasStore = create<ClienteReservasStore>((set, get) => ({
+  // Novo estado para calendário geral
+  calendarioGeral: null,
+  loadingCalendarioGeral: false,
+
+  reservasPaginadas: null,
+  filtroAtual: FILTRO_CLIENTE_RESERVAS_DEFAULT,
+  loadingFiltrado: false,
+
   // ✅ Estado inicial
   clienteCompleto: null,
   clientedata: null,
@@ -287,6 +475,66 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
   loading: false,
   error: null,
 
+getCalendarioGeral: async (mes?: number, ano?: number, espacoId?: string) => {
+    console.log("📅 ========== BUSCANDO CALENDÁRIO GERAL ==========");
+    console.log("📅 Mês:", mes || 'atual');
+    console.log("📅 Ano:", ano || 'atual');
+    console.log("📅 Espaço ID:", espacoId || 'todos');
+
+    set({ loadingCalendarioGeral: true, error: null });
+
+    try {
+      const params: any = {};
+      if (mes !== undefined) params.mes = mes;
+      if (ano !== undefined) params.ano = ano;
+      if (espacoId) params.espacoId = espacoId;
+
+      const response = await clienteApi.get<CalendarioGeralResponse>(
+        '/clientes/calendario-geral',
+        { params }
+      );
+
+      console.log("✅ ========== CALENDÁRIO GERAL CARREGADO ==========");
+      console.log("✅ Mês:", response.data.calendario.nomeMes);
+      console.log("✅ Ano:", response.data.calendario.ano);
+      console.log("✅ Total Reservas:", response.data.estatisticas.totalReservas);
+      console.log("✅ Ocupação Média:", response.data.estatisticas.ocupacaoMedia + "%");
+      console.log("✅ Dias Úteis:", response.data.calendario.diasUteis);
+
+      set({
+        calendarioGeral: response.data,
+        loadingCalendarioGeral: false,
+        error: null,
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR CALENDÁRIO GERAL ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao buscar calendário geral';
+
+      set({
+        loadingCalendarioGeral: false,
+        error: errorMessage,
+        calendarioGeral: null,
+      });
+
+      throw error;
+    }
+  },
+
+  /**
+   * ✅ Limpar calendário geral
+   */
+  limparCalendarioGeral: () => {
+    console.log("🧹 Limpando calendário geral");
+    set({ calendarioGeral: null });
+  },
 
   createPortal: async (clientedata: any, password: string) => {
     console.log("🔵 ========== CRIANDO PORTAL ==========");
@@ -470,6 +718,99 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set) => ({
 
       throw error;
     }
+  },
+  getClienteCompletoFiltrado: async (filtro: FiltroClienteReservas) => {
+    console.log("🔵 ========== BUSCANDO RESERVAS FILTRADAS ==========");
+    console.log("🔵 Filtro:", filtro);
+
+    set({ loadingFiltrado: true, error: null });
+
+    try {
+      const params = {
+        ...filtro,
+        dataInicio: filtro.dataInicio
+          ? new Date(filtro.dataInicio).toISOString()
+          : undefined,
+        dataFim: filtro.dataFim
+          ? new Date(filtro.dataFim).toISOString()
+          : undefined,
+      };
+
+      // Remover propriedades undefined
+      Object.keys(params).forEach(key => {
+        if (params[key] === undefined) {
+          delete params[key];
+        }
+      });
+
+      const response = await clienteApi.get<ClienteCompletoComPaginacao>(
+        `/clientes/getReservaCompletaFiltrado`,
+        { params }
+      );
+
+      set({
+        reservasPaginadas: response.data,
+        filtroAtual: filtro,
+        loadingFiltrado: false,
+        error: null,
+      });
+
+      console.log("✅ Reservas filtradas carregadas:", response.data);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        'Erro ao buscar reservas filtradas';
+
+      set({
+        loadingFiltrado: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+
+  // storage/cliente-storage.ts
+  // No store, ajuste a função aplicarFiltro:
+  aplicarFiltro: async (novoFiltro: Partial<FiltroClienteReservas>) => {
+    const { filtroAtual } = get();
+
+    // Converter 'todos' para undefined
+    const filtroProcessado = {
+      ...novoFiltro,
+      status: novoFiltro.status === 'todos' ? undefined : novoFiltro.status,
+      paymentStatus: novoFiltro.paymentStatus === 'todos' ? undefined : novoFiltro.paymentStatus,
+      search: novoFiltro.search === '' ? undefined : novoFiltro.search,
+      pagina: 1, // Sempre voltar para página 1 ao aplicar filtro
+    };
+
+    const filtroCompleto = {
+      ...filtroAtual,
+      ...filtroProcessado,
+    };
+
+    await get().getClienteCompletoFiltrado(filtroCompleto);
+  },
+
+  limparFiltro: async () => {
+    const { filtroAtual } = get();
+    const filtroLimpo = {
+      ...FILTRO_CLIENTE_RESERVAS_DEFAULT,
+      numeroCliente: filtroAtual.numeroCliente, // Mantém o número do cliente
+    };
+
+    await get().getClienteCompletoFiltrado(filtroLimpo);
+  },
+
+  mudarPagina: async (pagina: number) => {
+    const { filtroAtual } = get();
+    const novoFiltro = {
+      ...filtroAtual,
+      pagina,
+    };
+
+    await get().getClienteCompletoFiltrado(novoFiltro);
   },
   /**
    * ✅ Buscar cliente completo com todas as reservas
