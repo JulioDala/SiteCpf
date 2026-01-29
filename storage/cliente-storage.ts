@@ -418,7 +418,19 @@ export interface CalendarioGeralResponse {
 
 export interface ClienteReservasStore {
 
-// Estado do calendário geral
+  // ============ CALENDÁRIO PORTAL ============
+  calendarioPortal: CalendarioPortalResponse | null;
+  loadingCalendarioPortal: boolean;
+  filtroCalendarioPortal: FiltroCalendarioPortal;
+  errorCalendarioPortal: string | null;
+
+  // ============ AÇÕES DO CALENDÁRIO PORTAL ============
+  getCalendarioPortal: (filtro: FiltroCalendarioPortal) => Promise<CalendarioPortalResponse>;
+  setFiltroCalendarioPortal: (filtro: Partial<FiltroCalendarioPortal>) => void;
+  limparCalendarioPortal: () => void;
+  aplicarFiltroCalendarioPortal: () => Promise<void>;
+
+  // Estado do calendário geral
   calendarioGeral: CalendarioGeralResponse | null;
   loadingCalendarioGeral: boolean;
 
@@ -427,7 +439,7 @@ export interface ClienteReservasStore {
   // Ações do calendário geral
   getCalendarioGeral: (mes?: number, ano?: number, espacoId?: string) => Promise<CalendarioGeralResponse>;
   limparCalendarioGeral: () => void;
-  
+
   clientedata: ClienteBase;
   // Estado
   clienteCompleto: GetClienteCompletoPopulateResponse | null;
@@ -456,9 +468,79 @@ export interface ClienteReservasStore {
   reset: () => void;
 }
 
+
+
+
+
+// No arquivo store/types (acima da definição do store)
+
+// ============ INTERFACES DO CALENDÁRIO PORTAL ============
+
+export interface ReservaCalendarioPortal {
+  id: string;
+  horaInicio: string; // HH:mm
+  horaFim: string;    // HH:mm
+  status: string;
+  espaco?: string;
+  evento?: string;
+}
+
+export interface DiaCalendarioPortal {
+  dataCompleta: string; // YYYY-MM-DD
+  diaNumero: number;
+  vazio: boolean;
+  temDisponibilidade: boolean;
+  fimDeSemana: boolean;
+  feriado: boolean;
+  reservas: ReservaCalendarioPortal[];
+  intervalosOcupados: IntervaloPortal[];  // ✅ Lista de intervalos
+  intervalosDisponiveis: IntervaloPortal[];
+} // ✅ Lista de intervalos}
+export interface IntervaloPortal {
+  inicio: string; // HH:mm
+  fim: string;    // HH:mm
+}
+export interface CalendarioPortalResponse {
+  periodo: {
+    dataInicio: string;
+    dataFim: string;
+    totalDias: number;
+  };
+  dias: DiaCalendarioPortal[];
+  // 🔥 NOVO: Configuração do negócio
+  configuracao: {
+    horarioFuncionamento: {
+      inicio: string; // ex: "08:00"
+      fim: string;    // ex: "22:00"
+    };
+    intervalosReserva: {
+      duracaoMinima: number;    // minutos (ex: 30)
+      intervaloMinimo: number;   // minutos entre reservas (ex: 15)
+    };
+  };
+}
+
+export interface FiltroCalendarioPortal {
+  dataInicio: string; // YYYY-MM-DD
+  dataFim: string;    // YYYY-MM-DD
+  espacoId?: string;
+}
+
+export const FILTRO_CALENDARIO_PORTAL_DEFAULT: FiltroCalendarioPortal = {
+  dataInicio: new Date().toISOString().split('T')[0],
+  dataFim: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 dias à frente
+};
+
+
 // ============ STORE ============
 
 export const useClienteReservasStore = create<ClienteReservasStore>((set, get) => ({
+  // ============ ESTADOS DO CALENDÁRIO PORTAL ============
+  calendarioPortal: null,
+  loadingCalendarioPortal: false,
+  filtroCalendarioPortal: FILTRO_CALENDARIO_PORTAL_DEFAULT,
+  errorCalendarioPortal: null,
+
   // Novo estado para calendário geral
   calendarioGeral: null,
   loadingCalendarioGeral: false,
@@ -475,7 +557,96 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
   loading: false,
   error: null,
 
-getCalendarioGeral: async (mes?: number, ano?: number, espacoId?: string) => {
+  getCalendarioPortal: async (filtro: FiltroCalendarioPortal) => {
+    console.log("📅 ========== BUSCANDO CALENDÁRIO DO PORTAL ==========");
+    console.log("📅 Data Início:", filtro.dataInicio);
+    console.log("📅 Data Fim:", filtro.dataFim);
+    console.log("📅 Espaço ID:", filtro.espacoId || 'todos');
+
+    set({ loadingCalendarioPortal: true, errorCalendarioPortal: null });
+
+    try {
+      const response = await clienteApi.post<CalendarioPortalResponse>(
+        '/clientes/portal/calendario',
+        filtro
+      );
+
+      console.log("✅ ========== CALENDÁRIO DO PORTAL CARREGADO ==========");
+      console.log("✅ Período:", response.data.periodo.dataInicio, "a", response.data.periodo.dataFim);
+      console.log("✅ Total Dias:", response.data.periodo.totalDias);
+      console.log("✅ Dias com reservas:", response.data.dias.filter(d => d.reservas.length > 0).length);
+
+      set({
+        calendarioPortal: response.data,
+        loadingCalendarioPortal: false,
+        errorCalendarioPortal: null,
+      });
+
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR CALENDÁRIO DO PORTAL ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao buscar calendário do portal';
+
+      set({
+        loadingCalendarioPortal: false,
+        errorCalendarioPortal: errorMessage,
+        calendarioPortal: null,
+      });
+
+      throw error;
+    }
+  },
+
+  /**
+   * ✅ Atualizar filtro do calendário do portal
+   */
+  setFiltroCalendarioPortal: (filtro: Partial<FiltroCalendarioPortal>) => {
+    console.log("⚙️ Atualizando filtro do calendário portal:", filtro);
+
+    set((state) => ({
+      filtroCalendarioPortal: {
+        ...state.filtroCalendarioPortal,
+        ...filtro,
+      },
+    }));
+  },
+
+  /**
+   * ✅ Aplicar filtro do calendário do portal
+   */
+  aplicarFiltroCalendarioPortal: async () => {
+    const { filtroCalendarioPortal } = get();
+
+    console.log("🔍 Aplicando filtro do calendário portal:", filtroCalendarioPortal);
+
+    try {
+      await get().getCalendarioPortal(filtroCalendarioPortal);
+    } catch (error) {
+      console.error("❌ Erro ao aplicar filtro:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * ✅ Limpar calendário do portal
+   */
+  limparCalendarioPortal: () => {
+    console.log("🧹 Limpando calendário do portal");
+    set({
+      calendarioPortal: null,
+      filtroCalendarioPortal: FILTRO_CALENDARIO_PORTAL_DEFAULT,
+      errorCalendarioPortal: null
+    });
+  },
+
+
+  getCalendarioGeral: async (mes?: number, ano?: number, espacoId?: string) => {
     console.log("📅 ========== BUSCANDO CALENDÁRIO GERAL ==========");
     console.log("📅 Mês:", mes || 'atual');
     console.log("📅 Ano:", ano || 'atual');

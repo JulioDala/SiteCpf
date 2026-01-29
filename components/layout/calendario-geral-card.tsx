@@ -237,30 +237,6 @@ const CalendarioGeralCard: React.FC<CalendarioGeralCardProps> = ({
                 </div>
               ))}
             </div>
-
-            {/* Estatísticas rápidas */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center">
-                  <div className="text-xs text-gray-600">Ocupação</div>
-                  <div className="text-sm font-bold text-gray-900">
-                    {calendarioGeral.estatisticas.ocupacaoMedia}%
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-600">Horários Top</div>
-                  <div className="text-sm font-bold text-gray-900">
-                    {calendarioGeral.estatisticas.horariosMaisOcupados[0]?.hora || '-'}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-600">Dia Top</div>
-                  <div className="text-sm font-bold text-gray-900">
-                    {calendarioGeral.estatisticas.diasMaisOcupados[0]?.reservas || 0}
-                  </div>
-                </div>
-              </div>
-            </div>
           </>
         ) : (
           <div className="text-center py-8">

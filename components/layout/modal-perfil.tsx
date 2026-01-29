@@ -273,7 +273,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
                                     <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                                 <div className="ml-3">
@@ -328,13 +328,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
 
                                         <div>
                                             <p className="text-xs font-medium text-gray-500 mb-1">Status da Conta</p>
-                                            <Badge className={`
-                        px-3 py-1 border font-medium
-                        ${user?.status === 'Ativo'
-                                                    ? 'bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200'
-                                                    : 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 border-amber-200'
-                                                }
-                      `}>
+                                            <Badge className={`px-3 py-1 border font-medium ${user?.status === 'Ativo' ? 'bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 border-amber-200'}`}>
                                                 {user?.status || 'Desconhecido'}
                                             </Badge>
                                         </div>
@@ -399,13 +393,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                             <div className="flex space-x-1 bg-gray-100 rounded-lg p-1 mb-6">
                                 <button
                                     onClick={() => setActiveTab('dados')}
-                                    className={`
-                    flex-1 px-4 py-2.5 rounded-md text-sm font-semibold transition-all
-                    ${activeTab === 'dados'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                        }
-                  `}
+                                    className={`flex-1 px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'dados' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                                 >
                                     <div className="flex items-center justify-center space-x-2">
                                         <User className="w-4 h-4" />
@@ -414,13 +402,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('senha')}
-                                    className={`
-                    flex-1 px-4 py-2.5 rounded-md text-sm font-semibold transition-all
-                    ${activeTab === 'senha'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                        }
-                  `}
+                                    className={`flex-1 px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'senha' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                                 >
                                     <div className="flex items-center justify-center space-x-2">
                                         <Lock className="w-4 h-4" />
@@ -430,7 +412,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                             </div>
 
                             {/* Formulário Ativo */}
-                            {activeTab === 'dados' ? (
+                            <div className={activeTab === 'dados' ? '' : 'hidden'}>
                                 <form onSubmit={handleSubmitPerfil(onSubmitPerfil)} className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {/* Nome */}
@@ -443,13 +425,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="text"
                                                 id="nome"
                                                 {...registerPerfil('nome')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsPerfil.nome
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsPerfil.nome ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="Digite seu nome completo"
                                             />
                                             {errorsPerfil.nome && (
@@ -470,13 +446,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 disabled
                                                 id="email"
                                                 {...registerPerfil('email')}
-                                                className={`
-                                                w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                                                ${errorsPerfil.email
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                                                `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsPerfil.email ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="seu@email.com"
                                             />
                                             {errorsPerfil.email && (
@@ -496,13 +466,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="tel"
                                                 id="telefone"
                                                 {...registerPerfil('telefone')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsPerfil.telefone
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsPerfil.telefone ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="+244 900 000 000"
                                             />
                                             {errorsPerfil.telefone && (
@@ -522,13 +486,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="tel"
                                                 id="whatsapp"
                                                 {...registerPerfil('whatsapp')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsPerfil.whatsapp
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsPerfil.whatsapp ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="+244 900 000 000"
                                             />
                                             {errorsPerfil.whatsapp && (
@@ -615,7 +573,8 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                         </div>
                                     </div>
                                 </form>
-                            ) : (
+                            </div>
+                            <div className={activeTab === 'senha' ? '' : 'hidden'}>
                                 <form onSubmit={handleSubmitSenha(onSubmitSenha)} className="space-y-6">
                                     <div className="space-y-4">
                                         {/* Senha Atual */}
@@ -627,13 +586,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="password"
                                                 id="senhaAtual"
                                                 {...registerSenha('senhaAtual')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsSenha.senhaAtual
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsSenha.senhaAtual ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="Digite sua senha atual"
                                             />
                                             {errorsSenha.senhaAtual && (
@@ -652,13 +605,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="password"
                                                 id="novaSenha"
                                                 {...registerSenha('novaSenha')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsSenha.novaSenha
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsSenha.novaSenha ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="Mínimo 6 caracteres com maiúscula, minúscula e número"
                                             />
                                             {errorsSenha.novaSenha && (
@@ -677,13 +624,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                                 type="password"
                                                 id="confirmarSenha"
                                                 {...registerSenha('confirmarSenha')}
-                                                className={`
-                          w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all
-                          ${errorsSenha.confirmarSenha
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-gray-300 hover:border-gray-400'
-                                                    }
-                        `}
+                                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${errorsSenha.confirmarSenha ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
                                                 placeholder="Digite a nova senha novamente"
                                             />
                                             {errorsSenha.confirmarSenha && (
@@ -699,29 +640,25 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                         <h4 className="text-sm font-medium text-blue-800 mb-2">Requisitos da Senha:</h4>
                                         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-700">
                                             <li className="flex items-center space-x-2">
-                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${novaSenha?.length >= 6 ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                                                    }`}>
+                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${novaSenha?.length >= 6 ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
                                                     {novaSenha?.length >= 6 ? '✓' : '○'}
                                                 </div>
                                                 <span>Mínimo 6 caracteres</span>
                                             </li>
                                             <li className="flex items-center space-x-2">
-                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[A-Z]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                                                    }`}>
+                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[A-Z]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
                                                     {/[A-Z]/.test(novaSenha || '') ? '✓' : '○'}
                                                 </div>
                                                 <span>Uma letra maiúscula</span>
                                             </li>
                                             <li className="flex items-center space-x-2">
-                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[a-z]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                                                    }`}>
+                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[a-z]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
                                                     {/[a-z]/.test(novaSenha || '') ? '✓' : '○'}
                                                 </div>
                                                 <span>Uma letra minúscula</span>
                                             </li>
                                             <li className="flex items-center space-x-2">
-                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[0-9]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                                                    }`}>
+                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[0-9]/.test(novaSenha || '') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
                                                     {/[0-9]/.test(novaSenha || '') ? '✓' : '○'}
                                                 </div>
                                                 <span>Um número</span>
@@ -766,7 +703,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
                                         </div>
                                     </div>
                                 </form>
-                            )}
+                            </div>
                         </div>
                     </div>
                 </div>

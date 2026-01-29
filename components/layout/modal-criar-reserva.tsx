@@ -22,37 +22,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { 
-  CalendarIcon, 
-  Loader2, 
-  User, 
-  AlertCircle, 
-  X, 
-  Clock, 
-  MapPin, 
-  Users, 
-  DollarSign,
-  Calendar as CalendarLucide,
-  FileText,
-  Settings,
-  CheckCircle2
-} from 'lucide-react';
+import { Loader2, User, AlertCircle, X, MapPin, Users, CalendarPlusIcon as CalendarLucide, FileText, Settings, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '@/storage/atuh-storage';
 import { useBackendReservaStore } from '@/storage/reserva-store';
 import useTiposEventos from '@/storage/tipo-evento-store';
 import { useEspacosStore } from '@/storage/espaco-store';
 import Swal from 'sweetalert2';
+import { CalendarioPicker } from './CalendarioPicker';
 
 interface IFormCreairReserva {
   onClose: () => void;
@@ -60,7 +41,7 @@ interface IFormCreairReserva {
 }
 
 const reservaSchema = z.object({
-  data: z.date(),
+  data: z.string().min(1, "Data é obrigatória"),
   horaInicio: z.string().min(1, "Hora de início é obrigatória"),
   horaTermino: z.string().min(1, "Hora de término é obrigatória"),
   espacoId: z.string().min(1, "Selecione um espaço"),
@@ -84,24 +65,22 @@ const reservaSchema = z.object({
 
 type ReservaFormData = z.infer<typeof reservaSchema>;
 
-const horariosDisponiveis = [
-  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
-  "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
-  "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00"
-];
-
 export default function FormCreairReserva({ onClose, handleReserva }: IFormCreairReserva) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [disponibilidadeVerificada, setDisponibilidadeVerificada] = useState(false);
 
   const { userLogin } = useAuthStore();
   const { createReserva, loading: reservaLoading, error: reservaError } = useBackendReservaStore();
   const { espacos, isLoading: espacosLoading, error: espacosError, fetchEspacos } = useEspacosStore();
   const { tiposEventos, isLoading: eventosLoading, error: eventosError, fetchTiposEventos } = useTiposEventos();
-
+  const [horaInicio,setHoraInicio]=useState("");
+  const [horaTermino,setHoraTermino]=useState("");
   const form = useForm<ReservaFormData>({
     resolver: zodResolver(reservaSchema) as any,
     defaultValues: {
+      data: format(new Date(), 'yyyy-MM-dd'),
+      horaInicio: '08:00',
+      horaTermino: '10:00',
       participants: 1,
       valor: 0,
       description: '',
@@ -120,10 +99,50 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     },
   });
 
+  const handleCalendarioSelecionado = React.useCallback((dados: {
+    data: string;
+    horaInicio: string;
+    horaTermino: string;
+    disponivel: boolean;
+  }) => {
+    console.log("📅 Dados selecionados do calendário:", dados);
+
+    // Usa setValue apenas se os valores realmente mudaram
+    const dataAtual = form.getValues("data");
+    const horaInicioAtual = form.getValues("horaInicio");
+    const horaTerminoAtual = form.getValues("horaTermino");
+    console.log("Dados",dados);
+    if (dataAtual !== dados.data) {
+      form.setValue("data", dados.data, { shouldValidate: false });
+    }
+    if (horaInicioAtual !== dados.horaInicio) {
+      form.setValue("horaInicio", dados.horaInicio, { shouldValidate: false });
+    }
+    if (horaTerminoAtual !== dados.horaTermino) {
+      form.setValue("horaTermino", dados.horaTermino, { shouldValidate: false });
+    }
+
+    setDisponibilidadeVerificada(dados.disponivel);
+    console.log()
+
+    if (!dados.disponivel) {
+      form.setError("horaInicio", {
+        type: "manual",
+        message: "Horário indisponível"
+      });
+      form.setError("horaTermino", {
+        type: "manual",
+        message: "Horário indisponível"
+      });
+    } else {
+      form.clearErrors(["horaInicio", "horaTermino"]);
+    }
+  }, [form]);
+
   useEffect(() => {
     console.log("🔵 Iniciando formulário de reserva");
     console.log("🔵 Cliente:", userLogin?.cliente);
-    
+
     if (!espacos.length) {
       console.log("🔵 Carregando espaços...");
       fetchEspacos();
@@ -167,12 +186,12 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     try {
       const payload = {
         clienteId: userLogin.cliente._id,
-        data: format(data.data, 'yyyy-MM-dd'),
+        data: data.data, // Já está no formato yyyy-MM-dd
         horaInicio: data.horaInicio,
         horaTermino: data.horaTermino,
         espacoId: data.espacoId,
         eventoId: data.eventoId,
-        valor: data.valor,
+        valor:0,
         status: "Rascunho" as const,
         participants: data.participants,
         paymentStatus: "Pendente" as const,
@@ -202,7 +221,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
         title: 'Reserva Criada!',
         html: `
           <div class="text-left space-y-2">
-            <p class="text-gray-700"><strong>Data:</strong> ${format(data.data, "dd/MM/yyyy", { locale: pt })}</p>
+            <p class="text-gray-700"><strong>Data:</strong> ${format(new Date(data.data), "dd/MM/yyyy", { locale: pt })}</p>
             <p class="text-gray-700"><strong>Horário:</strong> ${data.horaInicio} - ${data.horaTermino}</p>
             <p class="text-gray-700"><strong>Participantes:</strong> ${data.participants}</p>
             <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Rascunho</span></p>
@@ -229,6 +248,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
       } else if (result.dismiss === Swal.DismissReason.cancel) {
         // Usuário quer criar outra reserva
         form.reset({
+          data: format(new Date(), 'yyyy-MM-dd'),
+          horaInicio: '08:00',
+          horaTermino: '10:00',
           participants: 1,
           valor: 0,
           description: '',
@@ -245,11 +267,12 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
           diasProducao: 0,
           outrasInformacoes: '',
         });
+        setDisponibilidadeVerificada(false);
       }
 
     } catch (error: any) {
       console.error("❌ Erro ao criar reserva:", error);
-      
+
       Swal.fire({
         icon: 'error',
         title: 'Erro ao Criar Reserva',
@@ -264,16 +287,16 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
   };
 
   const clienteInfo = userLogin?.cliente;
-  
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-slideUp">
+      <div className="bg-white rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-slideUp">
         <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
           <div className="relative flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold mb-1">Nova Reserva de Espaço</h2>
-              <p className="text-purple-100 text-sm">Preencha os dados para solicitar uma nova reserva</p>
+              <p className="text-purple-100 text-sm">Verifique disponibilidade e preencha os dados</p>
             </div>
             <button
               onClick={() => {
@@ -329,7 +352,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                   <CalendarLucide className="w-5 h-5 text-blue-600" />
                   <span>Dados Básicos da Reserva</span>
                 </h4>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <FormField
                     name="espacoId"
@@ -338,7 +361,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Espaço *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger 
+                            <SelectTrigger
                               className={cn(
                                 "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
                                 field.value && "border-purple-500 bg-purple-100 text-purple-900"
@@ -358,8 +381,8 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <div className="p-2 text-sm text-gray-500">Nenhum espaço disponível</div>
                             )}
                             {espacos.map((espaco: any) => (
-                              <SelectItem 
-                                key={espaco._id} 
+                              <SelectItem
+                                key={espaco._id}
                                 value={espaco._id}
                                 className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
                               >
@@ -386,7 +409,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         <FormLabel className="text-sm font-medium text-gray-700">Tipo de Evento *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger 
+                            <SelectTrigger
                               className={cn(
                                 "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
                                 field.value && "border-purple-500 bg-purple-100 text-purple-900"
@@ -406,8 +429,8 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <div className="p-2 text-sm text-gray-500">Nenhum tipo de evento disponível</div>
                             )}
                             {tiposEventos.map((evento) => (
-                              <SelectItem 
-                                key={evento._id} 
+                              <SelectItem
+                                key={evento._id}
                                 value={evento._id!}
                                 className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
                               >
@@ -422,121 +445,29 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    name="data"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium text-gray-700">Data do Evento *</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
-                                  !field.value && "text-muted-foreground",
-                                  field.value && "border-purple-500 bg-purple-100 text-purple-900"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP", { locale: pt })
-                                ) : (
-                                  <span>Selecione uma data</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date: any) =>
-                                date < new Date(new Date().setHours(0, 0, 0, 0))
-                              }
-                              initialFocus
-                              locale={pt}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                {/* Seção de Calendário com Disponibilidade */}
+                <div className="mt-6">
+                  <h4 className="font-semibold text-gray-700 mb-3">Selecionar Data e Horário</h4>
+
+                  {/* SEMPRE renderiza o componente */}
+                  <CalendarioPicker
+                    espacoId={form.watch('espacoId')}
+                    valorInicial={{
+                      data: form.watch('data'),
+                      horaInicio: form.watch('horaInicio'),
+                      horaTermino: form.watch('horaTermino'),
+                    }}
+                    onDataSelecionada={handleCalendarioSelecionado}
                   />
 
-                  <FormField
-                    name="horaInicio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium text-gray-700">Hora de Início *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger 
-                              className={cn(
-                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
-                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
-                              )}
-                            >
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="bg-white" side="bottom">
-                            {horariosDisponiveis.map((horario) => (
-                              <SelectItem 
-                                key={horario} 
-                                value={horario}
-                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                  {horario}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    name="horaTermino"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium text-gray-700">Hora de Término *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger 
-                              className={cn(
-                                "bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0",
-                                field.value && "border-purple-500 bg-purple-100 text-purple-900"
-                              )}
-                            >
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="bg-white" side="bottom">
-                            {horariosDisponiveis.map((horario) => (
-                              <SelectItem 
-                                key={horario} 
-                                value={horario}
-                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                  {horario}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Mensagem informativa – NÃO condicional de renderização */}
+                  {!form.watch('espacoId') && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                      <p className="text-blue-800">
+                        Selecione um espaço para visualizar os horários disponíveis
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -576,7 +507,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                     <FormItem>
                       <FormControl>
                         <Textarea
-                          placeholder="Descreva os detalhes do evento..."
+                          placeholder="Descreva os detalhes do evento, tema, cores, estilo..."
                           className="min-h-[80px] bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                           {...field}
                         />
@@ -682,7 +613,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             </FormItem>
                           )}
                         />
-                        
+
                         {form.watch("decoracaoExterna") && (
                           <FormField
                             name="contactoDecoradora"
@@ -690,10 +621,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <FormItem className="ml-4">
                                 <FormLabel className="text-xs text-gray-600">Contato da Decoradora *</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
-                                    {...field} 
+                                  <Input
+                                    placeholder="+244 9XX XXX XXX"
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
+                                    {...field}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -723,7 +654,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             </FormItem>
                           )}
                         />
-                        
+
                         {form.watch("cateringExterno") && (
                           <FormField
                             name="contactoCatering"
@@ -731,10 +662,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <FormItem className="ml-4">
                                 <FormLabel className="text-xs text-gray-600">Contato do Catering *</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
-                                    {...field} 
+                                  <Input
+                                    placeholder="+244 9XX XXX XXX"
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
+                                    {...field}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -764,7 +695,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             </FormItem>
                           )}
                         />
-                        
+
                         {form.watch("djExterno") && (
                           <FormField
                             name="contactoDJ"
@@ -772,10 +703,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                               <FormItem className="ml-4">
                                 <FormLabel className="text-xs text-gray-600">Contato do DJ *</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    placeholder="+244 9XX XXX XXX" 
-                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0" 
-                                    {...field} 
+                                  <Input
+                                    placeholder="+244 9XX XXX XXX"
+                                    className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
+                                    {...field}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -792,7 +723,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
               {/* Produção com Checkbox */}
               <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl p-5 border border-amber-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-                  <Clock className="w-5 h-5 text-amber-600" />
+                  <Settings className="w-5 h-5 text-amber-600" />
                   <span>Configurações de Produção</span>
                 </h4>
                 <div className="space-y-4">
@@ -827,13 +758,14 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             <Input
                               type="number"
                               min={0}
+                              placeholder="Ex: 2"
                               className="bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                             />
                           </FormControl>
                           <FormDescription className="text-xs">
-                            Quantidade de dias necessários
+                            Quantidade de dias necessários antes do evento
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -855,7 +787,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                     <FormItem>
                       <FormControl>
                         <Textarea
-                          placeholder="Requisitos especiais, restrições alimentares, observações importantes..."
+                          placeholder="Requisitos especiais, restrições alimentares, observações importantes, necessidades técnicas..."
                           className="min-h-[100px] bg-white border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                           {...field}
                         />
@@ -889,13 +821,18 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || reservaLoading}
+                  disabled={isSubmitting || reservaLoading || !disponibilidadeVerificada}
                   className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting || reservaLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
                       <span>Processando...</span>
+                    </>
+                  ) : !disponibilidadeVerificada ? (
+                    <>
+                      <AlertCircle className="h-5 w-5" />
+                      <span>Verifique Disponibilidade</span>
                     </>
                   ) : (
                     <>
