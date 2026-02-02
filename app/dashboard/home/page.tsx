@@ -20,7 +20,7 @@ import { ModalPerfil } from '@/components/layout/modal-perfil';
 import FiltroReservas from '@/components/layout/filtro-reservas';
 import PaginacaoReservas from '@/components/layout/paginacao-reservas';
 
-// Importe os componentes para desporto
+// Importe todos os componentes para desporto
 import FiltroDesportos from '@/components/layout/filtro-desportos';
 import CalendarioGeralCard from '@/components/layout/calendario-geral-card';
 import ModalCalendarioGeral from '@/components/layout/modal-calendario-geral';
