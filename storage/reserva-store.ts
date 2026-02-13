@@ -104,7 +104,33 @@ export interface BackendReserva {
   clientBiPassaporte?: string;
   clientMorada?: string;
 }
-
+export interface UpdateReservaPayload {
+  clienteId?: string;
+  data?: string;
+  horaInicio?: string;
+  horaTermino?: string;
+  espacoId?: string;
+  eventoId?: string;
+  valor?: number;
+  status?: "Confirmada" | "Pendente" | "Cancelada" | "Processada" | "Concluída" | "Rascunho";
+  participants?: number;
+  paymentStatus?: "Pago" | "Pendente" | "Cancelado" | "Parcial";
+  paymentMethod?: string;
+  description?: string;
+  decoracaoInterna?: boolean;
+  cateringInterno?: boolean;
+  djInterno?: boolean;
+  decoracaoExterna?: boolean;
+  cateringExterno?: boolean;
+  djExterno?: boolean;
+  contactoDecoradora?: string;
+  contactoCatering?: string;
+  contactoDJ?: string;
+  outrasInformacoes?: string;
+  comProducao?: boolean;
+  diasProducao?: number;
+  assinaturaFuncionario?: string;
+}
 export interface CreateReservaPayload {
   clienteId: string;
   data: string;
@@ -134,9 +160,12 @@ export interface CreateReservaPayload {
 
 interface BackendReservaState {
   reservas: BackendReserva[];
+  cancelarReserva: (id: string) => Promise<BackendReserva>;
+  getReservaById: (id: string) => Promise<BackendReserva>;
+  updateReserva: (id: string, data: UpdateReservaPayload) => Promise<BackendReserva>;
   reservaEstatistica: ReservaEstatisticas | null;
-  errorEstatistica:string | null;
-  loadingEstatistica:boolean
+  errorEstatistica: string | null;
+  loadingEstatistica: boolean
   loading: boolean;
   error: string | null;
   fetchEstatisticaReserva: (idCliente: string) => Promise<void>;
@@ -187,11 +216,114 @@ reservaApi.interceptors.response.use(
 export const useBackendReservaStore = create<BackendReservaState>((set) => ({
   reservas: [],
   reservaEstatistica: null,
-
   loading: false,
   error: null,
-  loadingEstatistica:false,
+  loadingEstatistica: false,
   errorEstatistica: null,
+   getReservaById: async (id: string): Promise<BackendReserva> => {
+    if (!id || id.trim() === "") {
+      throw new Error("ID da reserva inválido");
+    }
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await reservaApi.get<BackendReserva>(`/reservas/${id}`);
+      
+      set({ loading: false, error: null });
+      
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Erro ao buscar reserva";
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw new Error(errorMessage);
+    }
+  },
+  updateReserva: async (id: string, data: UpdateReservaPayload): Promise<BackendReserva> => {
+    if (!id || id.trim() === "") {
+      throw new Error("ID da reserva inválido");
+    }
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await reservaApi.patch<BackendReserva>(
+        `/reservas/updateportal/${id}`,
+        data
+      );
+
+      const reservaAtualizada = response.data;
+
+      set((state) => ({
+        reservas: state.reservas.map((reserva) =>
+          reserva._id === id ? reservaAtualizada : reserva
+        ),
+        loading: false,
+        error: null,
+      }));
+
+      return reservaAtualizada;
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Erro ao atualizar reserva";
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw new Error(errorMessage);
+    }
+  },
+  cancelarReserva: async (id: string): Promise<BackendReserva> => {
+    if (!id || id.trim() === "") {
+      throw new Error("ID da reserva inválido");
+    }
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await reservaApi.patch<BackendReserva>(
+        `/reservas/${id}/cancelar`
+      );
+
+      const reservaAtualizada = response.data;
+
+      set((state) => ({
+        reservas: state.reservas.map((reserva) =>
+          reserva._id === id ? reservaAtualizada : reserva
+        ),
+        loading: false,
+        error: null,
+      }));
+
+      return reservaAtualizada;
+
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Erro ao cancelar reserva";
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw new Error(errorMessage);
+    }
+  },
 
   createReserva: async (data) => {
     set({ loading: true, error: null });
@@ -220,18 +352,18 @@ export const useBackendReservaStore = create<BackendReservaState>((set) => ({
       throw error;
     }
   },
-   fetchEstatisticaReserva: async (idCliente: string): Promise<void> => {
+  fetchEstatisticaReserva: async (idCliente: string): Promise<void> => {
     if (!idCliente || idCliente.trim() === '') {
-      set({ 
+      set({
         errorEstatistica: 'ID do cliente não fornecido',
-        loadingEstatistica: false 
+        loadingEstatistica: false
       });
       return;
     }
 
-    set({ 
-      loadingEstatistica: true, 
-      errorEstatistica: null 
+    set({
+      loadingEstatistica: true,
+      errorEstatistica: null
     });
 
     try {

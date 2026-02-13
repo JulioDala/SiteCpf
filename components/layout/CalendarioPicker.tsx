@@ -6,22 +6,22 @@ import { Button } from '@/components/ui/button';
 import { useClienteReservasStore } from '@/storage/cliente-storage';
 
 interface Intervalo {
-  inicio: string; // "09:10"
-  fim: string;    // "11:45"
+  inicio: string;
+  fim: string;
 }
 
 interface DiaCalendarioPortal {
   dataCompleta: string;
   diaNumero: number;
-  vazio: boolean; // Dia não tem nenhuma reserva
-  temDisponibilidade: boolean; // Existe pelo menos um horário livre para reservar
+  vazio: boolean;
+  temDisponibilidade: boolean;
   fimDeSemana: boolean;
   feriado: boolean;
   reservas: Array<{
     id: string;
     horaInicio: string;
-    horaFim: string;
-    status: string;
+    dataInicioProducao?: Date;
+    dataFimProducao?: Date;
     espaco?: string;
     evento?: string;
   }>;
@@ -44,6 +44,7 @@ interface CalendarioPickerProps {
     horaInicio?: string;
     horaTermino?: string;
   };
+  reservaId?: string; // ✅ NOVO: opcional, para ignorar a própria reserva na edição
 }
 
 export function CalendarioPicker({
@@ -52,14 +53,15 @@ export function CalendarioPicker({
   dataInicio: dataInicioProps,
   dataFim: dataFimProps,
   valorInicial = {},
+  reservaId, // ✅ NOVO
 }: CalendarioPickerProps) {
   const [dataInicio, setDataInicio] = useState<string>(
     dataInicioProps || new Date().toISOString().split('T')[0]
   );
   const [dataFim, setDataFim] = useState<string>(
-    dataFimProps || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    dataFimProps || new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  
+
   const [dataSelecionada, setDataSelecionada] = useState<string | null>(valorInicial?.data || null);
   const [intervaloSelecionado, setIntervaloSelecionado] = useState<Intervalo | null>(
     valorInicial?.horaInicio && valorInicial?.horaTermino
@@ -73,25 +75,32 @@ export function CalendarioPicker({
     useClienteReservasStore();
 
   // Buscar calendário quando dataInicio/dataFim/espacoId mudam
-  const buscarCalendario = useCallback(async () => {
+  useEffect(() => {
     if (!dataInicio || !dataFim || !espacoId) return;
 
-    try {
-      await getCalendarioPortal({
-        dataInicio,
-        dataFim,
-        espacoId,
-      });
-    } catch (error) {
-      console.error('Erro ao buscar calendário:', error);
-    }
-  }, [dataInicio, dataFim, espacoId, getCalendarioPortal]);
+    const buscarCalendario = async () => {
+      try {
+        // ✅ NOVO: inclui reservaId APENAS se existir (para edição)
+        await getCalendarioPortal({
+          dataInicio,
+          dataFim,
+          espacoId,
+          ...(reservaId && { reservaId }) // Só adiciona se estiver editando
+        });
+      } catch (error) {
+        console.error('Erro ao buscar calendário:', error);
+      }
+    };
 
-  useEffect(() => {
     buscarCalendario();
-  }, [buscarCalendario]);
+  }, [dataInicio, dataFim, espacoId, reservaId]);
 
-  const isHorarioDisponivel = (inicio: string, fim: string, ocupados: Intervalo[]) => {
+  // ... resto do código permanece IGUAL
+  const isHorarioDisponivel = (
+    inicio: string,
+    fim: string,
+    ocupados: Intervalo[]
+  ) => {
     const toMinutes = (h: string) => {
       const [hor, min] = h.split(':').map(Number);
       return hor * 60 + min;
@@ -99,24 +108,26 @@ export function CalendarioPicker({
 
     if (!inicio || !fim) return false;
 
-    const inicioMin = toMinutes(inicio);
-    const fimMin = toMinutes(fim);
+    let inicioMin = toMinutes(inicio);
+    let fimMin = toMinutes(fim);
 
-    if (inicioMin >= fimMin) return false;
+    const atravessaMeiaNoite = fimMin <= inicioMin;
 
-    // Se não há intervalos ocupados, o horário está disponível
-    if (ocupados.length === 0) return true;
+    if (atravessaMeiaNoite) {
+      fimMin += 24 * 60;
+    }
 
-    // Verifica se há conflito com algum intervalo ocupado
     const temConflito = ocupados.some(({ inicio: oInicio, fim: oFim }) => {
-      const oInicioMin = toMinutes(oInicio);
-      const oFimMin = toMinutes(oFim);
-      // Conflito existe se os intervalos se sobrepõem
+      let oInicioMin = toMinutes(oInicio);
+      let oFimMin = toMinutes(oFim);
+
+      if (oFimMin <= oInicioMin) {
+        oFimMin += 24 * 60;
+      }
+
       return !(fimMin <= oInicioMin || inicioMin >= oFimMin);
     });
 
-    console.log('[v0] Validação - Início:', inicio, 'Fim:', fim, 'Ocupados:', ocupados, 'Tem conflito:', temConflito);
-    
     return !temConflito;
   };
 
@@ -138,7 +149,7 @@ export function CalendarioPicker({
     setDataSelecionada(data);
     setIntervaloSelecionado(intervalo);
     setHoraManual({ inicio: '', fim: '' });
-    
+
     onDataSelecionada({
       data,
       horaInicio: intervalo.inicio,
@@ -190,7 +201,7 @@ export function CalendarioPicker({
     onDataSelecionada({
       data,
       horaInicio: hora,
-      horaTermino: '', // Assuming horaTermino is not needed for this function
+      horaTermino: '',
       disponivel: true,
     });
   };
@@ -225,7 +236,7 @@ export function CalendarioPicker({
           <div className="flex-1">
             <p className="text-red-700 font-semibold mb-2">Erro ao carregar calendário</p>
             <p className="text-red-600 text-sm mb-4">{errorCalendarioPortal}</p>
-            <Button onClick={buscarCalendario} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+            <Button onClick={() => setDataInicio(dataInicio)} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
               Tentar novamente
             </Button>
           </div>
@@ -281,13 +292,12 @@ export function CalendarioPicker({
             {dias.map((dia) => (
               <div
                 key={dia.dataCompleta}
-                className={`rounded-lg p-4 border-2 transition-all ${
-                  !dia.temDisponibilidade
-                    ? 'bg-gray-50 border-gray-200 opacity-50'
-                    : dataSelecionada === dia.dataCompleta
+                className={`rounded-lg p-4 border-2 transition-all ${!dia.temDisponibilidade
+                  ? 'bg-gray-50 border-gray-200 opacity-50'
+                  : dataSelecionada === dia.dataCompleta
                     ? 'bg-blue-50 border-blue-400'
                     : 'bg-white border-gray-200 hover:border-blue-300'
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -337,11 +347,10 @@ export function CalendarioPicker({
                               <button
                                 key={`${intervalo.inicio}-${intervalo.fim}`}
                                 onClick={() => handleSelecionarIntervalo(dia.dataCompleta, intervalo)}
-                                className={`p-2 rounded-lg border-2 transition-all text-sm font-semibold ${
-                                  isSelected
-                                    ? 'bg-blue-500 border-blue-600 text-white'
-                                    : 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 hover:border-green-400'
-                                }`}
+                                className={`p-2 rounded-lg border-2 transition-all text-sm font-semibold ${isSelected
+                                  ? 'bg-blue-500 border-blue-600 text-white'
+                                  : 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 hover:border-green-400'
+                                  }`}
                               >
                                 {intervalo.inicio} – {intervalo.fim}
                               </button>

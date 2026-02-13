@@ -22,8 +22,8 @@ import PaginacaoReservas from '@/components/layout/paginacao-reservas';
 
 // Importe os componentes para desporto
 import FiltroDesportos from '@/components/layout/filtro-desportos';
-import CalendarioGeralCard from '@/components/layout/calendario-geral-card';
 import ModalCalendarioGeral from '@/components/layout/modal-calendario-geral';
+import Swal from 'sweetalert2';
 
 export default function ClientPortalHome() {
   const router = useRouter();
@@ -35,7 +35,7 @@ export default function ClientPortalHome() {
   const [showNotificacoesModal, setShowNotificacoesModal] = useState(false);
   const [showPerfilModal, setShowPerfilModal] = useState(false);
   const [showCalendarioModal, setShowCalendarioModal] = useState(false);
-  // ✅ Store de reservas
+  
   const {
     clienteCompleto,
     reservasFuturas,
@@ -46,8 +46,6 @@ export default function ClientPortalHome() {
     getClienteComReservasFuturas,
     clearError,
     reservaEspecifica,
-
-    // ✅ Variáveis para filtros e paginação
     reservasPaginadas,
     filtroAtual,
     loadingFiltrado,
@@ -56,13 +54,11 @@ export default function ClientPortalHome() {
     mudarPagina
   } = useClienteReservasStore();
 
-  // ✅ Store de desporto
   const {
     desportosFuturos,
     desportosCompletos,
     desportoEstatistica,
     fetchDesportosEstatistica,
-
     desportosPaginados,
     filtroAtualDesporto,
     loadingFiltradoDesporto,
@@ -84,6 +80,7 @@ export default function ClientPortalHome() {
 
   const {
     fetchEstatisticaReserva,
+    cancelarReserva,
     reservaEstatistica,
     loadingEstatistica: loadingReservaEstatistica,
     errorEstatistica: errorReservaEstatistica
@@ -94,17 +91,13 @@ export default function ClientPortalHome() {
   const email = userLogin?.cliente.email || "";
   const idCliente = userLogin?.cliente._id || "";
 
-  // ✅ Carregar dados do cliente ao montar componente
   useEffect(() => {
     const loadData = async () => {
       if (numeroCliente) {
-        // Carrega dados filtrados com configuração padrão
         await getClienteCompletoFiltrado({
           ...FILTRO_CLIENTE_RESERVAS_DEFAULT,
           numeroCliente,
         });
-
-        // Também carrega futuras separadamente
         await getClienteComReservasFuturas(numeroCliente);
       }
 
@@ -134,7 +127,6 @@ export default function ClientPortalHome() {
     }
   }, [desportoEspecifico]);
 
-  // ✅ Carregar estatísticas de reserva separadamente
   useEffect(() => {
     if (idCliente) {
       const loadReservaStats = async () => {
@@ -160,23 +152,28 @@ export default function ClientPortalHome() {
       console.log("🏃 Estatísticas de desporto carregadas:", desportoEstatistica);
     }
   }, [desportoEstatistica]);
+  
   function abreviarValor(valor) {
     if (valor >= 1_000_000_000) return (valor / 1_000_000_000).toFixed(1) + 'B Kz';
     if (valor >= 1_000_000) return (valor / 1_000_000).toFixed(1) + 'M Kz';
     if (valor >= 1_000) return (valor / 1_000).toFixed(0) + 'K Kz';
     return valor + ' Kz';
   }
+  
   const handleItemsPerPageChangeDesporto = async (items: number) => {
     await aplicarFiltroDesporto({
       itensPorPagina: items,
       pagina: 1,
     });
   };
+  
   const navigateTo = (path: string) => {
     router.push(path);
   };
+  
   const goToHome = () => navigateTo('/dashboard/home');
   const goToAgendar = () => navigateTo('/dashboard/agendar');
+  
   const reservasNormalizadas: ReservaCompleta[] = React.useMemo(() => {
     if (!clienteCompleto?.reservas) return [];
     return clienteCompleto.reservas.map(normalizarReserva);
@@ -187,7 +184,6 @@ export default function ClientPortalHome() {
     return reservasFuturas.reservasFuturas.map(normalizarReserva);
   }, [reservasFuturas]);
 
-  // ✅ Calcular estatísticas dinâmicas
   const stats = React.useMemo(() => {
     const reservasAtivas = reservasFuturasNormalizadas.filter(
       r => r.status === 'PENDENTE' || r.status === 'CONFIRMADO'
@@ -210,7 +206,6 @@ export default function ClientPortalHome() {
     };
   }, [reservasFuturasNormalizadas]);
 
-  // Função auxiliar para formatar valores
   const formatCurrency = (value: number): string => {
     if (value >= 1000000) {
       return `${(value / 1000000).toFixed(1)}M`;
@@ -231,15 +226,12 @@ export default function ClientPortalHome() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      // Status Reserva
       'Confirmada': 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50 backdrop-blur-sm shadow-sm',
       'Concluída': 'bg-blue-500/10 text-blue-700 border-blue-300/50 backdrop-blur-sm shadow-sm',
       'Pendente': 'bg-amber-500/10 text-amber-700 border-amber-300/50 backdrop-blur-sm shadow-sm',
       'Cancelada': 'bg-rose-500/10 text-rose-700 border-rose-300/50 backdrop-blur-sm shadow-sm',
       'Processada': 'bg-purple-500/10 text-purple-700 border-purple-300/50 backdrop-blur-sm shadow-sm',
       'Rascunho': 'bg-gray-500/10 text-gray-700 border-gray-300/50 backdrop-blur-sm shadow-sm',
-
-      // Status Pagamento
       'Pago': 'bg-emerald-500/10 text-emerald-700 border-emerald-300/50 backdrop-blur-sm shadow-sm',
       'Parcial': 'bg-yellow-500/10 text-yellow-700 border-yellow-300/50 backdrop-blur-sm shadow-sm',
       'Vencida': 'bg-rose-500/10 text-rose-700 border-rose-300/50 backdrop-blur-sm shadow-sm',
@@ -250,15 +242,12 @@ export default function ClientPortalHome() {
 
   const getStatusIcon = (status: string) => {
     const icons: Record<string, JSX.Element> = {
-      // Status Reserva
       'Confirmada': <CheckCircle className="w-3.5 h-3.5" />,
       'Concluída': <CheckCircle className="w-3.5 h-3.5" />,
       'Pendente': <AlertCircle className="w-3.5 h-3.5" />,
       'Cancelada': <XCircle className="w-3.5 h-3.5" />,
       'Processada': <CheckCircle className="w-3.5 h-3.5" />,
       'Rascunho': <Clock className="w-3.5 h-3.5" />,
-
-      // Status Pagamento
       'Pago': <CheckCircle className="w-3.5 h-3.5" />,
       'Parcial': <AlertCircle className="w-3.5 h-3.5" />,
       'Vencida': <XCircle className="w-3.5 h-3.5" />,
@@ -283,7 +272,6 @@ export default function ClientPortalHome() {
     router.push('/');
   };
 
-  // ✅ Formatar resumo de pagamentos
   const formatPagamentosResumo = (reserva: ReservaCompleta) => {
     const pagamentos = reserva.pagamentosDetalhes || [];
     const paga = pagamentos.filter(p => p.status === 'pago' || p.status === 'PAGO').length;
@@ -291,7 +279,6 @@ export default function ClientPortalHome() {
     return `${paga}/${pagamentos.length} parcelas • ${valorPago.toLocaleString()} AOA`;
   };
 
-  // ✅ Renderizar informações de caução
   const renderCaucaoInfo = (reserva: ReservaCompleta) => {
     const caucao = reserva.caucoes?.[0];
     if (!caucao) return null;
@@ -315,15 +302,13 @@ export default function ClientPortalHome() {
     );
   };
 
-  // ✅ Função para mudar itens por página
   const handleItemsPerPageChange = async (items: number) => {
     await aplicarFiltro({
       itensPorPagina: items,
-      pagina: 1, // Voltar para primeira página
+      pagina: 1,
     });
   };
 
-  // ✅ Adaptar render para desporto
   const renderDesportoItem = (desporto: any) => {
     const dataFormatada = new Date(desporto.dataInicio).toLocaleDateString('pt-PT');
     const horaInicio = desporto.horarioInicio;
@@ -344,7 +329,6 @@ export default function ClientPortalHome() {
     );
   };
 
-  // ✅ Funções de modal
   const openModal = (type: string, item: any) => {
     setShowModal({ type, item });
   };
@@ -357,7 +341,6 @@ export default function ClientPortalHome() {
     console.log("📊 Reserva criada:", data);
     if (numeroCliente) {
       getClienteComReservasFuturas(numeroCliente);
-      // Recarrega as reservas paginadas após criar nova
       getClienteCompletoFiltrado({
         ...(filtroAtual || FILTRO_CLIENTE_RESERVAS_DEFAULT),
         numeroCliente,
@@ -374,7 +357,6 @@ export default function ClientPortalHome() {
       fetchDesportosFuturos(email);
       fetchDesportosCompletos(email);
       fetchDesportosEstatistica(email);
-      // Recarrega os desportos filtrados
       getDesportosFiltrados({
         ...(filtroAtualDesporto || FILTRO_DESPORTO_DEFAULT),
         email,
@@ -382,7 +364,6 @@ export default function ClientPortalHome() {
     }
   }
 
-  // ✅ Renderizar estado de carregamento
   if (loading || loadingDesportoFuturos || loadingDesportoCompletos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center">
@@ -394,7 +375,6 @@ export default function ClientPortalHome() {
     );
   }
 
-  // ✅ Renderizar erro
   if (error || errorDesportoFuturos || errorDesportoCompletos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center p-4">
@@ -435,11 +415,9 @@ export default function ClientPortalHome() {
 
   return (
     <div className="min-h-screen bg-cyan-50 text-gray-900">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-purple-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Esquerda - Logo + Nome */}
             <div className="flex items-center gap-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-white shadow-sm">
@@ -459,16 +437,11 @@ export default function ClientPortalHome() {
                 </div>
               </div>
             </div>
-            {/* Direita - Ações do usuário */}
             <div className="flex items-center gap-5">
-              {/* Sino de notificações */}
               <NotificacaoBell
                 userEmail={email}
                 onClick={() => setShowNotificacoesModal(true)}
-              >
-                {/* Se o componente NotificacaoBell não renderiza o ícone, podes colocar assim: */}
-                {/* <Bell size={20} className="text-gray-600" /> */}
-              </NotificacaoBell>
+              />
 
               <div className="flex items-center gap-4">
                 <div className="text-right">
@@ -478,7 +451,6 @@ export default function ClientPortalHome() {
                   <p className="text-xs text-gray-500">Membro</p>
                 </div>
 
-                {/* Perfil */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -489,7 +461,6 @@ export default function ClientPortalHome() {
                   <User size={20} className="text-gray-600" />
                 </Button>
 
-                {/* Logout */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -505,9 +476,7 @@ export default function ClientPortalHome() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
-        {/* Welcome Section */}
         <div className="mb-10">
           <h2 className="text-4xl font-bold text-gray-900 mb-3">
             Olá, {clientName.split(' ')[0]}!
@@ -517,9 +486,7 @@ export default function ClientPortalHome() {
           </p>
         </div>
 
-        {/* Stats Cards - Desporto & Reservas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-          {/* Reservas Ativas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -542,7 +509,6 @@ export default function ClientPortalHome() {
             </CardContent>
           </Card>
 
-          {/* Modalidades Desportivas Ativas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-emerald-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -567,7 +533,6 @@ export default function ClientPortalHome() {
             </CardContent>
           </Card>
 
-          {/* Total Investido em Reservas */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-amber-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -582,8 +547,8 @@ export default function ClientPortalHome() {
               </p>
               <p className="text-2xl font-bold text-gray-900">
                 {reservaEstatistica?.totalReserva
-                  ?abreviarValor(reservaEstatistica.totalReserva)
-                  : '0'} 
+                  ? abreviarValor(reservaEstatistica.totalReserva)
+                  : '0'}
               </p>
 
               <div className="mt-3 pt-3 border-t border-gray-100">
@@ -596,7 +561,6 @@ export default function ClientPortalHome() {
             </CardContent>
           </Card>
 
-          {/* Total Investido em Desporto */}
           <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-blue-100 hover:-translate-y-1">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
@@ -612,7 +576,7 @@ export default function ClientPortalHome() {
               <p className="text-2xl font-bold text-gray-900">
                 {desportoEstatistica?.totalDesporto
                   ? abreviarValor(desportoEstatistica.totalDesporto)
-                  : '0'} 
+                  : '0'}
               </p>
 
               <div className="mt-3 pt-3 border-t border-gray-100">
@@ -626,7 +590,6 @@ export default function ClientPortalHome() {
           </Card>
         </div>
 
-        {/* Resumo Financeiro */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 mb-10">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
@@ -684,7 +647,6 @@ export default function ClientPortalHome() {
           </CardContent>
         </Card>
 
-        {/* Tabs Navigation */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex border-b border-gray-200 bg-gray-50">
@@ -742,7 +704,6 @@ export default function ClientPortalHome() {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6">
-                    {/* Próximas Reservas */}
                     <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-white border border-purple-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
@@ -777,7 +738,6 @@ export default function ClientPortalHome() {
                       </CardContent>
                     </Card>
 
-                    {/* Desporto Recente */}
                     <Card className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-200">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
@@ -804,7 +764,6 @@ export default function ClientPortalHome() {
 
               {activeTab === 'reservas' && (
                 <div className="space-y-6">
-                  {/* Cabeçalho com botão nova reserva */}
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">
@@ -848,13 +807,11 @@ export default function ClientPortalHome() {
                     </Button>
                   </div>
 
-                  {/* Componente de Filtros */}
                   <FiltroReservas
                     numeroCliente={numeroCliente}
                     className="mb-6"
                   />
 
-                  {/* Loading state para filtros */}
                   {loadingFiltrado && (
                     <div className="text-center py-12">
                       <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
@@ -862,7 +819,6 @@ export default function ClientPortalHome() {
                     </div>
                   )}
 
-                  {/* Lista de reservas com paginação */}
                   {reservasPaginadas && !loadingFiltrado ? (
                     <>
                       {reservasPaginadas.reservas.length === 0 ? (
@@ -890,17 +846,30 @@ export default function ClientPortalHome() {
                         </Card>
                       ) : (
                         <>
-                          {/* Lista de reservas */}
                           <div className="space-y-4">
                             {reservasPaginadas.reservas.map(res => {
                               const reservaNormalizada = normalizarReserva(res);
+                              const isRascunho = reservaNormalizada.status?.toLowerCase() === 'rascunho';
+
                               return (
-                                <Card key={reservaNormalizada._id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-purple-300">
+                                <Card
+                                  key={reservaNormalizada._id}
+                                  className={`group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border ${
+                                    isRascunho 
+                                      ? 'border-amber-300 hover:border-amber-400' 
+                                      : 'border-gray-200 hover:border-purple-300'
+                                  }`}
+                                >
                                   <CardContent className="p-6 space-y-3">
                                     <div className="flex justify-between items-start mb-4">
                                       <div>
                                         <CardTitle className="text-xl font-bold text-gray-900 mb-2">
                                           {reservaNormalizada.espaco?.nome || 'Espaço'}
+                                          {isRascunho && (
+                                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                                              Rascunho
+                                            </span>
+                                          )}
                                         </CardTitle>
                                         <p className="text-sm text-gray-600">
                                           {new Date(reservaNormalizada.data).toLocaleDateString('pt-PT')} às {reservaNormalizada.horaInicio} - {reservaNormalizada.horaTermino}
@@ -909,15 +878,94 @@ export default function ClientPortalHome() {
                                           Ref: {reservaNormalizada.ref} • {reservaNormalizada.participants} participantes
                                         </p>
                                       </div>
-                                      <div className="flex flex-col items-end space-y-2">
-                                        <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(reservaNormalizada.status)}`}>
-                                          {getStatusIcon(reservaNormalizada.status)}
-                                          <span className="ml-1">{reservaNormalizada.status}</span>
-                                        </Badge>
-                                        <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(reservaNormalizada.paymentStatus)}`}>
-                                          {getStatusIcon(reservaNormalizada.paymentStatus)}
-                                          <span className="ml-1">{reservaNormalizada.paymentStatus}</span>
-                                        </Badge>
+
+                                      <div className="flex flex-col items-end gap-3">
+                                        <div className="flex flex-wrap gap-2 justify-end">
+                                          <Badge className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(reservaNormalizada.status)}`}>
+                                            {getStatusIcon(reservaNormalizada.status)}
+                                            <span>{reservaNormalizada.status}</span>
+                                          </Badge>
+                                          <Badge className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(reservaNormalizada.paymentStatus)}`}>
+                                            {getStatusIcon(reservaNormalizada.paymentStatus)}
+                                            <span>{reservaNormalizada.paymentStatus}</span>
+                                          </Badge>
+                                        </div>
+
+                                        {isRascunho && (
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-8 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md border border-blue-300"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowModal({ 
+                                                  type: 'RegistarReserva', 
+                                                  item: reservaNormalizada._id
+                                                });
+                                              }}
+                                            >
+                                              <FileText className="w-4 h-4" />
+                                              <span>Editar</span>
+                                            </Button>
+
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              className="h-8 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md border-0"
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const confirm = await Swal.fire({
+                                                  title: 'Cancelar Reserva',
+                                                  text: 'Tem certeza que deseja cancelar esta reserva em rascunho?',
+                                                  icon: 'warning',
+                                                  showCancelButton: true,
+                                                  confirmButtonColor: '#e11d48',
+                                                  cancelButtonColor: '#6b7280',
+                                                  confirmButtonText: 'Sim, cancelar',
+                                                  cancelButtonText: 'Voltar',
+                                                  reverseButtons: true
+                                                });
+
+                                                if (confirm.isConfirmed) {
+                                                  try {
+                                                    await cancelarReserva(reservaNormalizada._id);
+
+                                                    if (numeroCliente) {
+                                                      await getClienteCompletoFiltrado({
+                                                        ...(filtroAtual || FILTRO_CLIENTE_RESERVAS_DEFAULT),
+                                                        numeroCliente,
+                                                      });
+                                                      await getClienteComReservasFuturas(numeroCliente);
+                                                    }
+                                                    if (idCliente) {
+                                                      await fetchEstatisticaReserva(idCliente);
+                                                    }
+
+                                                    await Swal.fire({
+                                                      title: 'Cancelada!',
+                                                      text: 'Reserva cancelada com sucesso.',
+                                                      icon: 'success',
+                                                      confirmButtonColor: '#10b981',
+                                                      timer: 2000,
+                                                      timerProgressBar: true
+                                                    });
+                                                  } catch (error: any) {
+                                                    await Swal.fire({
+                                                      title: 'Erro!',
+                                                      text: error?.message || 'Não foi possível cancelar a reserva.',
+                                                      icon: 'error',
+                                                      confirmButtonColor: '#e11d48'
+                                                    });
+                                                  }
+                                                }
+                                              }}
+                                            >
+                                              <XCircle className="w-4 h-4" />
+                                              <span>Cancelar</span>
+                                            </Button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
 
@@ -938,7 +986,7 @@ export default function ClientPortalHome() {
 
                                     {renderCaucaoInfo(reservaNormalizada)}
 
-                                    <div className="flex space-x-3">
+                                    <div className="flex space-x-3 pt-2">
                                       <Button
                                         variant="outline"
                                         className="flex-1 px-4 py-2.5 border-2 border-purple-300 text-purple-700 rounded-lg font-medium hover:bg-purple-50 transition-colors text-sm"
@@ -953,7 +1001,6 @@ export default function ClientPortalHome() {
                             })}
                           </div>
 
-                          {/* Paginação */}
                           {reservasPaginadas.paginacao.totalPaginas > 1 && (
                             <div className="mt-8">
                               <PaginacaoReservas
@@ -974,7 +1021,6 @@ export default function ClientPortalHome() {
                     </>
                   ) : null}
 
-                  {/* Mostrar lista antiga enquanto não carregou filtros */}
                   {!reservasPaginadas && !loadingFiltrado && (
                     <>
                       {reservasNormalizadas.length === 0 ? (
@@ -986,62 +1032,157 @@ export default function ClientPortalHome() {
                           </CardContent>
                         </Card>
                       ) : (
-                        reservasNormalizadas.map(res => (
-                          <Card key={res._id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-purple-300">
-                            <CardContent className="p-6 space-y-3">
-                              <div className="flex justify-between items-start mb-4">
-                                <div>
-                                  <CardTitle className="text-xl font-bold text-gray-900 mb-2">
-                                    {res.espaco?.nome || 'Espaço'}
-                                  </CardTitle>
-                                  <p className="text-sm text-gray-600">
-                                    {new Date(res.data).toLocaleDateString('pt-PT')} às {res.horaInicio} - {res.horaTermino}
-                                  </p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Ref: {res.ref} • {res.participants} participantes
-                                  </p>
-                                </div>
-                                <div className="flex flex-col items-end space-y-2">
-                                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(res.status)}`}>
-                                    {getStatusIcon(res.status)}
-                                    <span className="ml-1">{res.status}</span>
-                                  </Badge>
-                                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(res.paymentStatus)}`}>
-                                    {getStatusIcon(res.paymentStatus)}
-                                    <span className="ml-1">{res.paymentStatus}</span>
-                                  </Badge>
-                                </div>
-                              </div>
+                        reservasNormalizadas.map(res => {
+                          const isRascunho = res.status?.toLowerCase() === 'rascunho';
 
-                              <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="text-center">
-                                  <p className="text-xs text-gray-500">Total</p>
-                                  <p className="text-sm font-bold text-gray-900">{res.valor.toLocaleString()} AOA</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-xs text-gray-500">Pago</p>
-                                  <p className="text-sm font-bold text-emerald-600">{res.totalPago.toLocaleString()} AOA</p>
-                                </div>
-                                <div className="text-center">
-                                  <p className="text-xs text-gray-500">Pendente</p>
-                                  <p className="text-sm font-bold text-amber-600">{res.saldoPendente.toLocaleString()} AOA</p>
-                                </div>
-                              </div>
+                          return (
+                            <Card
+                              key={res._id}
+                              className={`group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border ${
+                                isRascunho 
+                                  ? 'border-amber-300 hover:border-amber-400' 
+                                  : 'border-gray-200 hover:border-purple-300'
+                              }`}
+                            >
+                              <CardContent className="p-6 space-y-3">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div>
+                                    <CardTitle className="text-xl font-bold text-gray-900 mb-2">
+                                      {res.espaco?.nome || 'Espaço'}
+                                      {isRascunho && (
+                                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                                          Rascunho
+                                        </span>
+                                      )}
+                                    </CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                      {new Date(res.data).toLocaleDateString('pt-PT')} às {res.horaInicio} - {res.horaTermino}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Ref: {res.ref} • {res.participants} participantes
+                                    </p>
+                                  </div>
 
-                              {renderCaucaoInfo(res)}
+                                  <div className="flex flex-col items-end gap-3">
+                                    <div className="flex flex-wrap gap-2 justify-end">
+                                      <Badge className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(res.status)}`}>
+                                        {getStatusIcon(res.status)}
+                                        <span>{res.status}</span>
+                                      </Badge>
+                                      <Badge className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(res.paymentStatus)}`}>
+                                        {getStatusIcon(res.paymentStatus)}
+                                        <span>{res.paymentStatus}</span>
+                                      </Badge>
+                                    </div>
 
-                              <div className="flex space-x-3">
-                                <Button
-                                  variant="outline"
-                                  className="flex-1 px-4 py-2.5 border-2 border-purple-300 text-purple-700 rounded-lg font-medium hover:bg-purple-50 transition-colors text-sm"
-                                  onClick={() => setShowDetalheReserva(res)}
-                                >
-                                  Ver Detalhes
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))
+                                    {isRascunho && (
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md border border-blue-300"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowModal({ 
+                                              type: 'RegistarReserva', 
+                                              item: res._id
+                                            });
+                                          }}
+                                        >
+                                          <FileText className="w-4 h-4" />
+                                          <span>Editar</span>
+                                        </Button>
+
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-8 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md border-0"
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const confirm = await Swal.fire({
+                                              title: 'Cancelar Reserva',
+                                              text: 'Tem certeza que deseja cancelar esta reserva em rascunho?',
+                                              icon: 'warning',
+                                              showCancelButton: true,
+                                              confirmButtonColor: '#e11d48',
+                                              cancelButtonColor: '#6b7280',
+                                              confirmButtonText: 'Sim, cancelar',
+                                              cancelButtonText: 'Voltar',
+                                              reverseButtons: true
+                                            });
+
+                                            if (confirm.isConfirmed) {
+                                              try {
+                                                await cancelarReserva(res._id);
+
+                                                if (numeroCliente) {
+                                                  await getClienteCompletoFiltrado({
+                                                    ...(filtroAtual || FILTRO_CLIENTE_RESERVAS_DEFAULT),
+                                                    numeroCliente,
+                                                  });
+                                                  await getClienteComReservasFuturas(numeroCliente);
+                                                }
+                                                if (idCliente) {
+                                                  await fetchEstatisticaReserva(idCliente);
+                                                }
+
+                                                await Swal.fire({
+                                                  title: 'Cancelada!',
+                                                  text: 'Reserva cancelada com sucesso.',
+                                                  icon: 'success',
+                                                  confirmButtonColor: '#10b981',
+                                                  timer: 2000,
+                                                  timerProgressBar: true
+                                                });
+                                              } catch (error: any) {
+                                                await Swal.fire({
+                                                  title: 'Erro!',
+                                                  text: error?.message || 'Não foi possível cancelar a reserva.',
+                                                  icon: 'error',
+                                                  confirmButtonColor: '#e11d48'
+                                                });
+                                              }
+                                            }
+                                          }}
+                                        >
+                                          <XCircle className="w-4 h-4" />
+                                          <span>Cancelar</span>
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
+                                  <div className="text-center">
+                                    <p className="text-xs text-gray-500">Total</p>
+                                    <p className="text-sm font-bold text-gray-900">{res.valor.toLocaleString()} AOA</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-xs text-gray-500">Pago</p>
+                                    <p className="text-sm font-bold text-emerald-600">{res.totalPago.toLocaleString()} AOA</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-xs text-gray-500">Pendente</p>
+                                    <p className="text-sm font-bold text-amber-600">{res.saldoPendente.toLocaleString()} AOA</p>
+                                  </div>
+                                </div>
+
+                                {renderCaucaoInfo(res)}
+
+                                <div className="flex space-x-3 pt-2">
+                                  <Button
+                                    variant="outline"
+                                    className="flex-1 px-4 py-2.5 border-2 border-purple-300 text-purple-700 rounded-lg font-medium hover:bg-purple-50 transition-colors text-sm"
+                                    onClick={() => setShowDetalheReserva(res)}
+                                  >
+                                    Ver Detalhes
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })
                       )}
                     </>
                   )}
@@ -1050,7 +1191,6 @@ export default function ClientPortalHome() {
 
               {activeTab === 'desporto' && (
                 <div className="space-y-6">
-                  {/* Cabeçalho */}
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">
@@ -1090,13 +1230,11 @@ export default function ClientPortalHome() {
                     </Button>
                   </div>
 
-                  {/* Componente de Filtros */}
                   <FiltroDesportos
                     email={email}
                     className="mb-6"
                   />
 
-                  {/* Loading state para filtros */}
                   {loadingFiltradoDesporto && (
                     <div className="text-center py-12">
                       <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
@@ -1104,7 +1242,6 @@ export default function ClientPortalHome() {
                     </div>
                   )}
 
-                  {/* Lista de desportos com paginação */}
                   {desportosPaginados && !loadingFiltradoDesporto ? (
                     <>
                       {desportosPaginados.desportos.length === 0 ? (
@@ -1132,7 +1269,6 @@ export default function ClientPortalHome() {
                         </Card>
                       ) : (
                         <>
-                          {/* Lista de desportos */}
                           <div className="space-y-4">
                             {desportosPaginados.desportos.map(desporto => (
                               <Card key={desporto._id} className="group border-0 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-emerald-300">
@@ -1181,7 +1317,6 @@ export default function ClientPortalHome() {
                                     </div>
                                   </div>
 
-                                  {/* Informações de caução */}
                                   {desporto.caucoes && desporto.caucoes.length > 0 && (
                                     <div className="p-2 bg-blue-50 rounded text-sm">
                                       <p className="text-blue-700 font-medium">
@@ -1205,7 +1340,6 @@ export default function ClientPortalHome() {
                             ))}
                           </div>
 
-                          {/* Paginação */}
                           {desportosPaginados.paginacao.totalPaginas > 1 && (
                             <div className="mt-8">
                               <PaginacaoReservas
@@ -1226,7 +1360,6 @@ export default function ClientPortalHome() {
                     </>
                   ) : null}
 
-                  {/* Mostrar lista antiga enquanto não carregou filtros */}
                   {!desportosPaginados && !loadingFiltradoDesporto && (
                     <>
                       {desportosCompletos.length === 0 ? (
@@ -1296,7 +1429,6 @@ export default function ClientPortalHome() {
         </Card>
       </main>
 
-      {/* Modals */}
       {showDetalheReserva && (
         <ModalDetalheReserva
           data={showDetalheReserva}
@@ -1317,6 +1449,7 @@ export default function ClientPortalHome() {
         <FormCreairReserva
           handleReserva={handleReserva}
           onClose={closeModal}
+          reservaId={showModal.item}
         />
       )}
 

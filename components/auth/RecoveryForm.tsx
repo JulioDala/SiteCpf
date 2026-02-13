@@ -196,7 +196,7 @@ export default function RecuperarSenhaPage() {
     }
   };
 
-  // Step 2: Verificar código
+// Step 2: Verificar código
 // Step 2: Verificar código
 // Step 2: Verificar código - VERSÃO SIMPLIFICADA
 const handleVerificarCodigo = async (data: CodigoVerificacaoData) => {
