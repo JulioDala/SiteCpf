@@ -124,7 +124,8 @@ const STATUS_COLORS = {
 
 export default function ClientPortalHome() {
   const router = useRouter();
-  const { userLogin, logout } = useAuthStore();
+  const { userLogin, logout, isInitialized } = useAuthStore();
+  const [isFetchingAll, setIsFetchingAll] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [reservasViewMode, setReservasViewMode] = useState<ViewMode>('cards');
   const [desportosViewMode, setDesportosViewMode] = useState<ViewMode>('cards');
@@ -192,28 +193,32 @@ export default function ClientPortalHome() {
   const idCliente = userLogin?.cliente._id || "";
 
   useEffect(() => {
+    if (!isInitialized) return;
+
     const loadData = async () => {
-      if (numeroCliente) {
-        await getClienteCompletoFiltrado({
-          ...FILTRO_CLIENTE_RESERVAS_DEFAULT,
-          numeroCliente,
-        });
-        await getClienteComReservasFuturas(numeroCliente);
+      if (!numeroCliente && !email) {
+        setIsFetchingAll(false);
+        return;
       }
 
-      if (email) {
-        await getDesportosFiltrados({
-          ...FILTRO_DESPORTO_DEFAULT,
-          email,
-        });
-        await fetchDesportosFuturos(email);
-        await fetchDesportosCompletos(email);
-        await fetchDesportosEstatistica(email);
+      setIsFetchingAll(true);
+      try {
+        await Promise.all([
+          numeroCliente ? getClienteCompletoFiltrado({ ...FILTRO_CLIENTE_RESERVAS_DEFAULT, numeroCliente }) : Promise.resolve(),
+          numeroCliente ? getClienteComReservasFuturas(numeroCliente) : Promise.resolve(),
+          email ? getDesportosFiltrados({ ...FILTRO_DESPORTO_DEFAULT, email }) : Promise.resolve(),
+          email ? fetchDesportosFuturos(email) : Promise.resolve(),
+          email ? fetchDesportosCompletos(email) : Promise.resolve(),
+          email ? fetchDesportosEstatistica(email) : Promise.resolve(),
+          idCliente ? fetchEstatisticaReserva(idCliente) : Promise.resolve(),
+        ]);
+      } finally {
+        setIsFetchingAll(false);
       }
     };
 
     loadData();
-  }, [numeroCliente, email]);
+  }, [isInitialized, numeroCliente, email, idCliente]);
 
   useEffect(() => {
     if (reservaEspecifica?.reserva) {
@@ -226,20 +231,6 @@ export default function ClientPortalHome() {
       setShowDetalheDesporto(desportoEspecifico);
     }
   }, [desportoEspecifico]);
-
-  useEffect(() => {
-    if (idCliente) {
-      const loadReservaStats = async () => {
-        try {
-          await fetchEstatisticaReserva(idCliente);
-        } catch (error) {
-          console.error("Erro ao carregar estatísticas de reserva:", error);
-        }
-      };
-
-      loadReservaStats();
-    }
-  }, [idCliente, fetchEstatisticaReserva]);
 
   function abreviarValor(valor: number) {
     if (valor >= 1_000_000_000) return (valor / 1_000_000_000).toFixed(1) + 'B Kz';
@@ -941,7 +932,7 @@ export default function ClientPortalHome() {
   };
 
   // ✅ Renderizar estado de carregamento
-  if (loading || loadingDesportoFuturos || loadingDesportoCompletos) {
+  if (isFetchingAll) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center">
         <div className="text-center">
