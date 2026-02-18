@@ -321,9 +321,7 @@ export const ModalPerfil: React.FC<ModalPerfilProps> = ({ isOpen, onClose }) => 
 
                                         <div>
                                             <p className="text-xs font-medium text-gray-500 mb-1">Tipo de Cliente</p>
-                                            <Badge className="bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border border-purple-200 px-3 py-1">
-                                                {user?.tipo ? user.tipo.charAt(0).toUpperCase() + user.tipo.slice(1) : '-'}
-                                            </Badge>
+                                             <Badge variant={user.tipo === "sonangol" ? "sonangol" : "secondary"}>{user.tipo}</Badge>
                                         </div>
 
                                         <div>
