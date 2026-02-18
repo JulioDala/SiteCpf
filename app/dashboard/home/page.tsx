@@ -1322,7 +1322,7 @@ export default function ClientPortalHome() {
                           {desportosFuturos.slice(0, 2).map(desporto => (
                             <div key={desporto._id} className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
                               <div className="flex justify-between items-start mb-2">
-                                <p className="font-medium text-gray-900">{desporto.nomeEquipe || desporto.tipoAtividade}</p>
+                                <p className="font-medium text-gray-900">{desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}</p>
                                 <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(desporto.status)}`}>
                                   {getStatusIcon(desporto.status)}
                                   <span className="ml-1">{desporto.status}</span>
