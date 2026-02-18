@@ -32,7 +32,7 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
   const {
     calendarioGeral,
     loadingCalendarioGeral,
-    getCalendarioGeral,
+    getCalendarioGeralReservas,
     error
   } = useClienteReservasStore();
 
@@ -49,7 +49,7 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
   }, [isOpen, mesSelecionado, anoSelecionado, espacoId]);
 
   const carregarCalendario = () => {
-    getCalendarioGeral(mesSelecionado, anoSelecionado, espacoId);
+    getCalendarioGeralReservas({ mes: mesSelecionado, ano: anoSelecionado, espacoId });
   };
 
   const navegarParaMesAnterior = () => {
@@ -122,7 +122,7 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
   };
 
   const handleDiaClick = (dia: any) => {
-    if (dia.vazio || (!dia.temReservas && dia.ocupacao?.nivel === 'BAIXA')) return;
+    if (dia.vazio || (!dia.ocupacao?.temReservas && dia.ocupacao?.nivel === 'BAIXA')) return;
 
     setDiaSelecionado(dia);
     setMostrarDetalhesDia(true);
@@ -307,10 +307,10 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
                               </div>
                             </div>
 
-                            {dia.temReservas ? (
+                            {dia.ocupacao?.temReservas ? (
                               <div className="space-y-1">
                                 <div className="text-xs font-semibold">
-                                  {dia.totalReservas} reserva{dia.totalReservas !== 1 ? 's' : ''}
+                                  {dia.ocupacao.totalReservas} reserva{dia.ocupacao.totalReservas !== 1 ? 's' : ''}
                                 </div>
                                 <div className="text-xs opacity-80">
                                   {formatarPercentual(dia.ocupacao?.percentual || 0)} ocupado
