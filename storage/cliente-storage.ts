@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import axios, { AxiosInstance } from 'axios';
 import Cookies from 'js-cookie';
+import { CalendarioGeralResponse, FILTRO_CALENDARIO_GERAL_DEFAULT, FiltroCalendarioGeral } from './calendario-geral';
 
 export interface WebCredencial {
   username: string;
@@ -143,7 +144,7 @@ export interface ReservaCompleta {
   paymentStatus: 'PENDENTE' | 'PARCIALMENTE_PAGO' | 'PAGO' | 'VENCIDO';
 
   // Status e detalhes
-  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO';
+  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO' |  'Rascunho' | 'RASCUNHO' | "Cancelada" ;
   participants: number;
   paymentMethod?: string;
   description?: string;
@@ -342,77 +343,6 @@ clienteApi.interceptors.response.use(
   }
 );
 //================  CALENDARIO GERAL=========================
-export interface DiaCalendarioGeral {
-  dia: number;
-  data: string; // YYYY-MM-DD
-  ocupacao: {
-    percentual: number;
-    totalHorarios: number;
-    horariosOcupados: number;
-    horariosDisponiveis: number;
-    nivel: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CHEIO';
-  };
-  temReservas: boolean;
-  totalReservas: number;
-  horariosOcupados: Array<{
-    horario: string;
-    reservaId: string;
-    espaco: string;
-    evento: string;
-    status: StatusReserva;
-    participantes: number;
-    periodo: string;
-  }>;
-  horariosDisponiveis: string[];
-  reservasPorEspaco: Array<{
-    nome: string;
-    reservas: Array<{
-      id: string;
-      horario: string;
-      evento: string;
-      status: StatusReserva;
-      participantes: number;
-    }>;
-    totalReservas: number;
-  }>;
-  feriado: boolean;
-  fimDeSemana: boolean;
-  vazio?: boolean;
-}
-
-export interface CalendarioGeralResponse {
-  calendario: {
-    mes: number;
-    ano: number;
-    nomeMes: string;
-    dias: DiaCalendarioGeral[];
-    semanas: DiaCalendarioGeral[][];
-    totalDias: number;
-    diasUteis: number;
-  };
-  estatisticas: {
-    totalReservas: number;
-    ocupacaoMedia: number;
-    horariosMaisOcupados: Array<{
-      hora: string;
-      reservas: number;
-    }>;
-    diasMaisOcupados: Array<{
-      data: string;
-      reservas: number;
-    }>;
-    porEspaco: Array<{
-      nome: string;
-      reservas: number;
-    }>;
-    porStatus: Record<StatusReserva, number>;
-  };
-  horariosPadrao: {
-    inicio: string;
-    fim: string;
-    intervalo: number;
-  };
-}
 
 // ============ INTERFACES DO STORE ============
 
@@ -430,15 +360,20 @@ export interface ClienteReservasStore {
   limparCalendarioPortal: () => void;
   aplicarFiltroCalendarioPortal: () => Promise<void>;
 
-  // Estado do calendário geral
+
+  //====================ESTADO CALENDARIO GERAL=======================
   calendarioGeral: CalendarioGeralResponse | null;
   loadingCalendarioGeral: boolean;
-
-  // ... outros estados existentes ...
+  filtroCalendarioGeral: FiltroCalendarioGeral;
+  errorCalendarioGeral: string | null;
+  //=======================ACCAO CALENDARIO GERAL==================
+  getCalendarioGeralReservas: (filtro?: FiltroCalendarioGeral) => Promise<CalendarioGeralResponse>;
+  setFiltroCalendarioGeral: (filtro: Partial<FiltroCalendarioGeral>) => void;
+  aplicarFiltroCalendarioGeral: () => Promise<void>;
+  limparCalendarioGeral: () => void;
+  //===========================================================================
 
   // Ações do calendário geral
-  getCalendarioGeral: (mes?: number, ano?: number, espacoId?: string) => Promise<CalendarioGeralResponse>;
-  limparCalendarioGeral: () => void;
 
   clientedata: ClienteBase;
   // Estado
@@ -480,6 +415,8 @@ export interface ReservaCalendarioPortal {
   id: string;
   horaInicio: string; // HH:mm
   horaFim: string;    // HH:mm
+  dataInicioProducao?: Date;
+  dataFimProducao?: Date;
   status: string;
   espaco?: string;
   evento?: string;
@@ -540,10 +477,11 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
   loadingCalendarioPortal: false,
   filtroCalendarioPortal: FILTRO_CALENDARIO_PORTAL_DEFAULT,
   errorCalendarioPortal: null,
-
-  // Novo estado para calendário geral
+  // ============ ESTADOS DO CALENDÁRIO GERAL ============
   calendarioGeral: null,
   loadingCalendarioGeral: false,
+  filtroCalendarioGeral: FILTRO_CALENDARIO_GERAL_DEFAULT,
+  errorCalendarioGeral: null,
 
   reservasPaginadas: null,
   filtroAtual: FILTRO_CLIENTE_RESERVAS_DEFAULT,
@@ -645,37 +583,37 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
     });
   },
 
+  // ============ AÇÕES DO CALENDÁRIO GERAL ============
+  getCalendarioGeralReservas: async (filtro?: FiltroCalendarioGeral) => {
+    const filtroFinal = filtro || get().filtroCalendarioGeral;
 
-  getCalendarioGeral: async (mes?: number, ano?: number, espacoId?: string) => {
-    console.log("📅 ========== BUSCANDO CALENDÁRIO GERAL ==========");
-    console.log("📅 Mês:", mes || 'atual');
-    console.log("📅 Ano:", ano || 'atual');
-    console.log("📅 Espaço ID:", espacoId || 'todos');
+    console.log("📊 ========== BUSCANDO CALENDÁRIO GERAL ==========");
+    console.log("📊 Mês:", filtroFinal.mes);
+    console.log("📊 Ano:", filtroFinal.ano);
+    console.log("📊 Espaço ID:", filtroFinal.espacoId || 'todos os espaços');
 
-    set({ loadingCalendarioGeral: true, error: null });
+    set({ loadingCalendarioGeral: true, errorCalendarioGeral: null });
 
     try {
-      const params: any = {};
-      if (mes !== undefined) params.mes = mes;
-      if (ano !== undefined) params.ano = ano;
-      if (espacoId) params.espacoId = espacoId;
+      const params = new URLSearchParams();
+      if (filtroFinal.mes) params.append('mes', filtroFinal.mes.toString());
+      if (filtroFinal.ano) params.append('ano', filtroFinal.ano.toString());
+      if (filtroFinal.espacoId) params.append('espacoId', filtroFinal.espacoId);
 
       const response = await clienteApi.get<CalendarioGeralResponse>(
-        '/clientes/calendario-geral',
-        { params }
+        `/clientes/calendario-geral?${params.toString()}`
       );
 
       console.log("✅ ========== CALENDÁRIO GERAL CARREGADO ==========");
-      console.log("✅ Mês:", response.data.calendario.nomeMes);
-      console.log("✅ Ano:", response.data.calendario.ano);
+      console.log("✅ Período:", response.data.calendario.mes, "/", response.data.calendario.ano);
       console.log("✅ Total Reservas:", response.data.estatisticas.totalReservas);
-      console.log("✅ Ocupação Média:", response.data.estatisticas.ocupacaoMedia + "%");
-      console.log("✅ Dias Úteis:", response.data.calendario.diasUteis);
+      console.log("✅ Ocupação Média:", response.data.estatisticas.ocupacaoMedia, "%");
+      console.log("✅ Total Participantes:", response.data.estatisticas.totalParticipantes);
 
       set({
         calendarioGeral: response.data,
         loadingCalendarioGeral: false,
-        error: null,
+        errorCalendarioGeral: null,
       });
 
       return response.data;
@@ -691,7 +629,7 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
 
       set({
         loadingCalendarioGeral: false,
-        error: errorMessage,
+        errorCalendarioGeral: errorMessage,
         calendarioGeral: null,
       });
 
@@ -699,12 +637,37 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
     }
   },
 
-  /**
-   * ✅ Limpar calendário geral
-   */
+  setFiltroCalendarioGeral: (filtro: Partial<FiltroCalendarioGeral>) => {
+    console.log("⚙️ Atualizando filtro do calendário geral:", filtro);
+
+    set((state) => ({
+      filtroCalendarioGeral: {
+        ...state.filtroCalendarioGeral,
+        ...filtro,
+      },
+    }));
+  },
+
+  aplicarFiltroCalendarioGeral: async () => {
+    const { filtroCalendarioGeral } = get();
+
+    console.log("🔍 Aplicando filtro do calendário geral:", filtroCalendarioGeral);
+
+    try {
+      await get().getCalendarioGeralReservas(filtroCalendarioGeral);
+    } catch (error) {
+      console.error("❌ Erro ao aplicar filtro calendário geral:", error);
+      throw error;
+    }
+  },
+
   limparCalendarioGeral: () => {
     console.log("🧹 Limpando calendário geral");
-    set({ calendarioGeral: null });
+    set({
+      calendarioGeral: null,
+      filtroCalendarioGeral: FILTRO_CALENDARIO_GERAL_DEFAULT,
+      errorCalendarioGeral: null
+    });
   },
 
   createPortal: async (clientedata: any, password: string) => {

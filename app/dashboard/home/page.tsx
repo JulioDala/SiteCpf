@@ -40,6 +40,8 @@ import { ModalPerfil } from '@/components/layout/modal-perfil';
 import FiltroReservas from '@/components/layout/filtro-reservas';
 import PaginacaoReservas from '@/components/layout/paginacao-reservas';
 import FiltroDesportos from '@/components/layout/filtro-desportos';
+import ModalCalendarioGeral from '@/components/layout/modal-calendario-geral';
+import Swal from 'sweetalert2';
 
 type ViewMode = 'cards' | 'table' | 'list';
 
@@ -131,6 +133,8 @@ export default function ClientPortalHome() {
   const [showDetalheDesporto, setShowDetalheDesporto] = useState<any>(null);
   const [showNotificacoesModal, setShowNotificacoesModal] = useState(false);
   const [showPerfilModal, setShowPerfilModal] = useState(false);
+  const [showCalendarioModal, setShowCalendarioModal] = useState(false);
+  
 
   // ✅ Store de reservas
   const {
@@ -150,7 +154,6 @@ export default function ClientPortalHome() {
     mudarPagina
   } = useClienteReservasStore();
 
-  // ✅ Store de desporto
   const {
     desportosFuturos,
     desportosCompletos,
@@ -177,6 +180,7 @@ export default function ClientPortalHome() {
 
   const {
     fetchEstatisticaReserva,
+    cancelarReserva,
     reservaEstatistica,
     loadingEstatistica: loadingReservaEstatistica,
     errorEstatistica: errorReservaEstatistica
@@ -187,7 +191,6 @@ export default function ClientPortalHome() {
   const email = userLogin?.cliente.email || "";
   const idCliente = userLogin?.cliente._id || "";
 
-  // ✅ Carregar dados do cliente ao montar componente
   useEffect(() => {
     const loadData = async () => {
       if (numeroCliente) {
@@ -224,7 +227,6 @@ export default function ClientPortalHome() {
     }
   }, [desportoEspecifico]);
 
-  // ✅ Carregar estatísticas de reserva separadamente
   useEffect(() => {
     if (idCliente) {
       const loadReservaStats = async () => {
@@ -252,6 +254,14 @@ export default function ClientPortalHome() {
       pagina: 1,
     });
   };
+  
+  const navigateTo = (path: string) => {
+    router.push(path);
+  };
+  
+  const goToHome = () => navigateTo('/dashboard/home');
+  const goToAgendar = () => navigateTo('/dashboard/agendar');
+  
 
   const reservasNormalizadas: ReservaCompleta[] = React.useMemo(() => {
     if (!clienteCompleto?.reservas) return [];
@@ -263,7 +273,6 @@ export default function ClientPortalHome() {
     return reservasFuturas.reservasFuturas.map(normalizarReserva);
   }, [reservasFuturas]);
 
-  // ✅ Calcular estatísticas dinâmicas
   const stats = React.useMemo(() => {
     const reservasAtivas = reservasFuturasNormalizadas.filter(
       r => r.status === 'PENDENTE' || r.status === 'CONFIRMADO'
@@ -285,6 +294,15 @@ export default function ClientPortalHome() {
       proximaReserva: proximaReservaTexto
     };
   }, [reservasFuturasNormalizadas]);
+
+  const formatCurrency = (value: number): string => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`;
+    }
+    return value.toString();
+  };
 
   const formatCurrencyFull = (value: number): string => {
     return new Intl.NumberFormat('pt-AO', {
@@ -934,7 +952,6 @@ export default function ClientPortalHome() {
     );
   }
 
-  // ✅ Renderizar erro
   if (error || errorDesportoFuturos || errorDesportoCompletos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center p-4">
@@ -975,7 +992,6 @@ export default function ClientPortalHome() {
 
   return (
     <div className="min-h-screen bg-cyan-50 text-gray-900">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-purple-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -1037,9 +1053,7 @@ export default function ClientPortalHome() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
-        {/* Welcome Section */}
         <div className="mb-10">
           <h2 className="text-4xl font-bold text-gray-900 mb-3">
             Olá, {clientName.split(' ')[0]}!
@@ -1140,7 +1154,7 @@ export default function ClientPortalHome() {
               <p className="text-2xl font-bold text-gray-900">
                 {desportoEstatistica?.totalDesporto
                   ? abreviarValor(desportoEstatistica.totalDesporto)
-                  : '0'} 
+                  : '0'}
               </p>
 
               <div className="mt-3 pt-3 border-t border-gray-100">
@@ -1154,7 +1168,6 @@ export default function ClientPortalHome() {
           </Card>
         </div>
 
-        {/* Resumo Financeiro */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 mb-10">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-bold text-gray-900 flex items-center space-x-2">
@@ -1205,7 +1218,6 @@ export default function ClientPortalHome() {
           </CardContent>
         </Card>
 
-        {/* Tabs Navigation */}
         <Card className="group border-0 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden rounded-2xl bg-white border border-purple-100 mb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex border-b border-gray-200 bg-gray-50">
@@ -1583,7 +1595,6 @@ export default function ClientPortalHome() {
         </Card>
       </main>
 
-      {/* Modals */}
       {showDetalheReserva && (
         <ModalDetalheReserva
           data={showDetalheReserva}
@@ -1604,6 +1615,7 @@ export default function ClientPortalHome() {
         <FormCreairReserva
           handleReserva={handleReserva}
           onClose={closeModal}
+          reservaId={showModal.item}
         />
       )}
 

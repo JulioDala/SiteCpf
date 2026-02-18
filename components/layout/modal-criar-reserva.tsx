@@ -22,14 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { Loader2, User, AlertCircle, X, MapPin, Users, CalendarPlusIcon as CalendarLucide, FileText, Settings, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '@/storage/atuh-storage';
-import { useBackendReservaStore } from '@/storage/reserva-store';
+import { useBackendReservaStore, UpdateReservaPayload } from '@/storage/reserva-store';
 import useTiposEventos from '@/storage/tipo-evento-store';
 import { useEspacosStore } from '@/storage/espaco-store';
 import Swal from 'sweetalert2';
@@ -38,6 +37,7 @@ import { CalendarioPicker } from './CalendarioPicker';
 interface IFormCreairReserva {
   onClose: () => void;
   handleReserva: (data: any) => void;
+  reservaId?: string;
 }
 
 const reservaSchema = z.object({
@@ -65,16 +65,28 @@ const reservaSchema = z.object({
 
 type ReservaFormData = z.infer<typeof reservaSchema>;
 
-export default function FormCreairReserva({ onClose, handleReserva }: IFormCreairReserva) {
+export default function FormCreairReserva({ 
+  onClose, 
+  handleReserva, 
+  reservaId 
+}: IFormCreairReserva) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [disponibilidadeVerificada, setDisponibilidadeVerificada] = useState(false);
+  const [isEditing, setIsEditing] = useState(!!reservaId);
+  const [loadingReserva, setLoadingReserva] = useState(!!reservaId);
 
   const { userLogin } = useAuthStore();
-  const { createReserva, loading: reservaLoading, error: reservaError } = useBackendReservaStore();
+  const { 
+    createReserva, 
+    updateReserva, 
+    getReservaById,
+    loading: reservaLoading, 
+    error: reservaError 
+  } = useBackendReservaStore();
+  
   const { espacos, isLoading: espacosLoading, error: espacosError, fetchEspacos } = useEspacosStore();
   const { tiposEventos, isLoading: eventosLoading, error: eventosError, fetchTiposEventos } = useTiposEventos();
-  const [horaInicio,setHoraInicio]=useState("");
-  const [horaTermino,setHoraTermino]=useState("");
+
   const form = useForm<ReservaFormData>({
     resolver: zodResolver(reservaSchema) as any,
     defaultValues: {
@@ -99,19 +111,72 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     },
   });
 
+  useEffect(() => {
+    const carregarReserva = async () => {
+      if (!reservaId) return;
+
+      try {
+        setLoadingReserva(true);
+        const reserva = await getReservaById(reservaId);
+        
+        const dataObj = new Date(reserva.data);
+        const dataFormatada = format(dataObj, 'yyyy-MM-dd');
+
+        form.reset({
+          data: dataFormatada,
+          horaInicio: reserva.horaInicio,
+          horaTermino: reserva.horaTermino,
+          espacoId: typeof reserva.espacoId === 'string' 
+            ? reserva.espacoId 
+            : reserva.espacoId._id,
+          eventoId: typeof reserva.eventoId === 'string'
+            ? reserva.eventoId
+            : reserva.eventoId._id,
+          participants: reserva.participants,
+          valor: reserva.valor || 0,
+          description: reserva.description || '',
+          decoracaoInterna: reserva.decoracaoInterna || false,
+          cateringInterno: reserva.cateringInterno || false,
+          djInterno: reserva.djInterno || false,
+          decoracaoExterna: reserva.decoracaoExterna || false,
+          cateringExterno: reserva.cateringExterno || false,
+          djExterno: reserva.djExterno || false,
+          contactoDecoradora: reserva.contactoDecoradora || '',
+          contactoCatering: reserva.contactoCatering || '',
+          contactoDJ: reserva.contactoDJ || '',
+          comProducao: reserva.comProducao || false,
+          diasProducao: reserva.diasProducao || 0,
+          outrasInformacoes: reserva.outrasInformacoes || '',
+        });
+
+        setDisponibilidadeVerificada(true);
+      } catch (error) {
+        console.error("Erro ao carregar reserva:", error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro ao Carregar',
+          text: 'Não foi possível carregar os dados da reserva.',
+          confirmButtonColor: '#9333ea',
+        });
+        onClose();
+      } finally {
+        setLoadingReserva(false);
+      }
+    };
+
+    carregarReserva();
+  }, [reservaId, getReservaById]);
+
   const handleCalendarioSelecionado = React.useCallback((dados: {
     data: string;
     horaInicio: string;
     horaTermino: string;
     disponivel: boolean;
   }) => {
-    console.log("📅 Dados selecionados do calendário:", dados);
-
-    // Usa setValue apenas se os valores realmente mudaram
     const dataAtual = form.getValues("data");
     const horaInicioAtual = form.getValues("horaInicio");
     const horaTerminoAtual = form.getValues("horaTermino");
-    console.log("Dados",dados);
+
     if (dataAtual !== dados.data) {
       form.setValue("data", dados.data, { shouldValidate: false });
     }
@@ -123,7 +188,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     }
 
     setDisponibilidadeVerificada(dados.disponivel);
-    console.log()
 
     if (!dados.disponivel) {
       form.setError("horaInicio", {
@@ -140,24 +204,16 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
   }, [form]);
 
   useEffect(() => {
-    console.log("🔵 Iniciando formulário de reserva");
-    console.log("🔵 Cliente:", userLogin?.cliente);
-
     if (!espacos.length) {
-      console.log("🔵 Carregando espaços...");
       fetchEspacos();
     }
     if (!tiposEventos.length) {
-      console.log("🔵 Carregando tipos de eventos...");
       fetchTiposEventos();
     }
   }, []);
 
   const onSubmit = async (data: ReservaFormData) => {
-    console.log("🔵 ========== SUBMISSÃO INICIADA ==========");
-    console.log("🔵 Dados do formulário:", data);
-
-    if (!userLogin?.cliente?._id) {
+    if (!isEditing && !userLogin?.cliente?._id) {
       console.error("Cliente não autenticado!");
       await Swal.fire({
         icon: 'error',
@@ -171,10 +227,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
 
     setIsSubmitting(true);
 
-    // Loading alert
     Swal.fire({
-      title: 'Processando Reserva',
-      text: 'Aguarde enquanto criamos sua reserva...',
+      title: isEditing ? 'Atualizando Reserva' : 'Processando Reserva',
+      text: isEditing ? 'Aguarde enquanto atualizamos sua reserva...' : 'Aguarde enquanto criamos sua reserva...',
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
@@ -184,109 +239,155 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
     });
 
     try {
-      const payload = {
-        clienteId: userLogin.cliente._id,
-        data: data.data, // Já está no formato yyyy-MM-dd
-        horaInicio: data.horaInicio,
-        horaTermino: data.horaTermino,
-        espacoId: data.espacoId,
-        eventoId: data.eventoId,
-        valor:0,
-        status: "Rascunho" as const,
-        participants: data.participants,
-        paymentStatus: "Pendente" as const,
-        paymentMethod: '',
-        description: data.description || '',
-        decoracaoInterna: data.decoracaoInterna,
-        cateringInterno: data.cateringInterno,
-        djInterno: data.djInterno,
-        decoracaoExterna: data.decoracaoExterna,
-        cateringExterno: data.cateringExterno,
-        djExterno: data.djExterno,
-        contactoDecoradora: data.contactoDecoradora || '',
-        contactoCatering: data.contactoCatering || '',
-        contactoDJ: data.contactoDJ || '',
-        comProducao: data.comProducao,
-        diasProducao: data.diasProducao || 0,
-        outrasInformacoes: data.outrasInformacoes || '',
-      };
+      if (isEditing && reservaId) {
+        const payload: UpdateReservaPayload = {
+          data: data.data,
+          horaInicio: data.horaInicio,
+          horaTermino: data.horaTermino,
+          espacoId: data.espacoId,
+          eventoId: data.eventoId,
+          participants: data.participants,
+          description: data.description || '',
+          decoracaoInterna: data.decoracaoInterna,
+          cateringInterno: data.cateringInterno,
+          djInterno: data.djInterno,
+          decoracaoExterna: data.decoracaoExterna,
+          cateringExterno: data.cateringExterno,
+          djExterno: data.djExterno,
+          contactoDecoradora: data.contactoDecoradora || '',
+          contactoCatering: data.contactoCatering || '',
+          contactoDJ: data.contactoDJ || '',
+          comProducao: data.comProducao,
+          diasProducao: data.diasProducao || 0,
+          outrasInformacoes: data.outrasInformacoes || '',
+        };
 
-      const reservaCriada = await createReserva(payload);
+        const reservaAtualizada = await updateReserva(reservaId, payload);
 
-      console.log("✅ Reserva criada:", reservaCriada);
-
-      // Success alert com opções
-      const result = await Swal.fire({
-        icon: 'success',
-        title: 'Reserva Criada!',
-        html: `
-          <div class="text-left space-y-2">
-            <p class="text-gray-700"><strong>Data:</strong> ${format(new Date(data.data), "dd/MM/yyyy", { locale: pt })}</p>
-            <p class="text-gray-700"><strong>Horário:</strong> ${data.horaInicio} - ${data.horaTermino}</p>
-            <p class="text-gray-700"><strong>Participantes:</strong> ${data.participants}</p>
-            <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Rascunho</span></p>
-            <div class="mt-4 p-3 bg-purple-50 rounded-lg">
-              <p class="text-sm text-purple-800">
-                <strong>Próximo passo:</strong> Aguarde a análise da administração para confirmação da reserva.
-              </p>
+        await Swal.fire({
+          icon: 'success',
+          title: 'Reserva Atualizada!',
+          html: `
+            <div class="text-left space-y-2">
+              <p class="text-gray-700"><strong>Data:</strong> ${format(new Date(data.data), "dd/MM/yyyy", { locale: pt })}</p>
+              <p class="text-gray-700"><strong>Horário:</strong> ${data.horaInicio} - ${data.horaTermino}</p>
+              <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Atualizado</span></p>
             </div>
-          </div>
-        `,
-        confirmButtonText: 'Ver Minhas Reservas',
-        confirmButtonColor: '#9333ea',
-        showCancelButton: true,
-        cancelButtonText: 'Criar Outra Reserva',
-        cancelButtonColor: '#6b7280',
-        allowOutsideClick: false,
-      });
-
-      handleReserva(reservaCriada);
-
-      if (result.isConfirmed) {
-        // Usuário quer ver suas reservas
-        onClose();
-      } else if (result.dismiss === Swal.DismissReason.cancel) {
-        // Usuário quer criar outra reserva
-        form.reset({
-          data: format(new Date(), 'yyyy-MM-dd'),
-          horaInicio: '08:00',
-          horaTermino: '10:00',
-          participants: 1,
-          valor: 0,
-          description: '',
-          decoracaoInterna: false,
-          cateringInterno: false,
-          djInterno: false,
-          decoracaoExterna: false,
-          cateringExterno: false,
-          djExterno: false,
-          contactoDecoradora: '',
-          contactoCatering: '',
-          contactoDJ: '',
-          comProducao: false,
-          diasProducao: 0,
-          outrasInformacoes: '',
+          `,
+          confirmButtonText: 'Concluir',
+          confirmButtonColor: '#9333ea',
         });
-        setDisponibilidadeVerificada(false);
-      }
 
+        handleReserva(reservaAtualizada);
+        onClose();
+
+      } else {
+        const payload = {
+          clienteId: userLogin!.cliente._id,
+          data: data.data,
+          horaInicio: data.horaInicio,
+          horaTermino: data.horaTermino,
+          espacoId: data.espacoId,
+          eventoId: data.eventoId,
+          valor: 0,
+          status: "Rascunho" as const,
+          participants: data.participants,
+          paymentStatus: "Pendente" as const,
+          paymentMethod: '',
+          description: data.description || '',
+          decoracaoInterna: data.decoracaoInterna,
+          cateringInterno: data.cateringInterno,
+          djInterno: data.djInterno,
+          decoracaoExterna: data.decoracaoExterna,
+          cateringExterno: data.cateringExterno,
+          djExterno: data.djExterno,
+          contactoDecoradora: data.contactoDecoradora || '',
+          contactoCatering: data.contactoCatering || '',
+          contactoDJ: data.contactoDJ || '',
+          comProducao: data.comProducao,
+          diasProducao: data.diasProducao || 0,
+          outrasInformacoes: data.outrasInformacoes || '',
+        };
+
+        const reservaCriada = await createReserva(payload);
+
+        const result = await Swal.fire({
+          icon: 'success',
+          title: 'Reserva Criada!',
+          html: `
+            <div class="text-left space-y-2">
+              <p class="text-gray-700"><strong>Data:</strong> ${format(new Date(data.data), "dd/MM/yyyy", { locale: pt })}</p>
+              <p class="text-gray-700"><strong>Horário:</strong> ${data.horaInicio} - ${data.horaTermino}</p>
+              <p class="text-gray-700"><strong>Status:</strong> <span class="text-amber-600 font-semibold">Rascunho</span></p>
+              <div class="mt-4 p-3 bg-purple-50 rounded-lg">
+                <p class="text-sm text-purple-800">
+                  <strong>Próximo passo:</strong> Aguarde a análise da administração.
+                </p>
+              </div>
+            </div>
+          `,
+          confirmButtonText: 'Ver Minhas Reservas',
+          confirmButtonColor: '#9333ea',
+          showCancelButton: true,
+          cancelButtonText: 'Criar Outra',
+          cancelButtonColor: '#6b7280',
+        });
+
+        handleReserva(reservaCriada);
+
+        if (result.isConfirmed) {
+          onClose();
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+          form.reset({
+            data: format(new Date(), 'yyyy-MM-dd'),
+            horaInicio: '08:00',
+            horaTermino: '10:00',
+            participants: 1,
+            valor: 0,
+            description: '',
+            decoracaoInterna: false,
+            cateringInterno: false,
+            djInterno: false,
+            decoracaoExterna: false,
+            cateringExterno: false,
+            djExterno: false,
+            contactoDecoradora: '',
+            contactoCatering: '',
+            contactoDJ: '',
+            comProducao: false,
+            diasProducao: 0,
+            outrasInformacoes: '',
+          });
+          setDisponibilidadeVerificada(false);
+        }
+      }
     } catch (error: any) {
-      console.error("❌ Erro ao criar reserva:", error);
+      console.error(`❌ Erro ao ${isEditing ? 'atualizar' : 'criar'} reserva:`, error);
 
       Swal.fire({
         icon: 'error',
-        title: 'Erro ao Criar Reserva',
-        text: error.message || error.response?.data?.message || 'Ocorreu um erro ao processar sua solicitação. Tente novamente.',
+        title: `Erro ao ${isEditing ? 'Atualizar' : 'Criar'} Reserva`,
+        text: error.message || error.response?.data?.message || `Ocorreu um erro ao ${isEditing ? 'atualizar' : 'processar'} sua solicitação.`,
         confirmButtonText: 'Tentar Novamente',
         confirmButtonColor: '#9333ea',
       });
     } finally {
       setIsSubmitting(false);
-      console.log("🔵 Submissão finalizada");
     }
   };
 
   const clienteInfo = userLogin?.cliente;
+
+  if (loadingReserva) {
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-3xl p-12 shadow-2xl flex flex-col items-center">
+          <Loader2 className="w-12 h-12 animate-spin text-purple-600 mb-4" />
+          <p className="text-gray-600 font-medium">Carregando dados da reserva...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -295,14 +396,15 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
           <div className="relative flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold mb-1">Nova Reserva de Espaço</h2>
-              <p className="text-purple-100 text-sm">Verifique disponibilidade e preencha os dados</p>
+              <h2 className="text-2xl font-bold mb-1">
+                {isEditing ? 'Editar Reserva' : 'Nova Reserva de Espaço'}
+              </h2>
+              <p className="text-purple-100 text-sm">
+                {isEditing ? 'Atualize os dados da sua reserva' : 'Verifique disponibilidade e preencha os dados'}
+              </p>
             </div>
             <button
-              onClick={() => {
-                console.log("🔵 Fechando modal");
-                onClose();
-              }}
+              onClick={onClose}
               className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-all backdrop-blur-sm"
               disabled={isSubmitting || reservaLoading}
             >
@@ -312,7 +414,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
         </div>
 
         <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          {clienteInfo && (
+          {!isEditing && clienteInfo && (
             <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl p-5 border border-purple-200">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -346,7 +448,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Dados Básicos */}
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <CalendarLucide className="w-5 h-5 text-blue-600" />
@@ -359,7 +460,11 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-sm font-medium text-gray-700">Espaço *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value}
+                          disabled={isEditing}
+                        >
                           <FormControl>
                             <SelectTrigger
                               className={cn(
@@ -371,20 +476,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-white" side="bottom">
-                            {espacosLoading && (
-                              <div className="p-2 text-sm text-gray-500">Carregando espaços...</div>
-                            )}
-                            {espacosError && (
-                              <div className="p-2 text-sm text-red-500">{espacosError}</div>
-                            )}
-                            {!espacosLoading && !espacosError && espacos.length === 0 && (
-                              <div className="p-2 text-sm text-gray-500">Nenhum espaço disponível</div>
-                            )}
                             {espacos.map((espaco: any) => (
                               <SelectItem
                                 key={espaco._id}
                                 value={espaco._id}
-                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
                               >
                                 <div className="flex items-center gap-2">
                                   <MapPin className="w-4 h-4 text-blue-600" />
@@ -419,20 +514,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-white" side="bottom">
-                            {eventosLoading && (
-                              <div className="p-2 text-sm text-gray-500">Carregando tipos...</div>
-                            )}
-                            {eventosError && (
-                              <div className="p-2 text-sm text-red-500">{eventosError}</div>
-                            )}
-                            {!eventosLoading && !eventosError && tiposEventos.length === 0 && (
-                              <div className="p-2 text-sm text-gray-500">Nenhum tipo de evento disponível</div>
-                            )}
                             {tiposEventos.map((evento) => (
                               <SelectItem
-                                key={evento._id}
+                                key={evento._id!}
                                 value={evento._id!}
-                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:text-white focus:bg-purple-100"
                               >
                                 {evento.nome}
                               </SelectItem>
@@ -445,11 +530,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                   />
                 </div>
 
-                {/* Seção de Calendário com Disponibilidade */}
                 <div className="mt-6">
                   <h4 className="font-semibold text-gray-700 mb-3">Selecionar Data e Horário</h4>
 
-                  {/* SEMPRE renderiza o componente */}
                   <CalendarioPicker
                     espacoId={form.watch('espacoId')}
                     valorInicial={{
@@ -458,9 +541,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                       horaTermino: form.watch('horaTermino'),
                     }}
                     onDataSelecionada={handleCalendarioSelecionado}
+                    reservaId={isEditing ? reservaId : undefined}
                   />
 
-                  {/* Mensagem informativa – NÃO condicional de renderização */}
                   {!form.watch('espacoId') && (
                     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
                       <p className="text-blue-800">
@@ -495,7 +578,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </div>
               </div>
 
-              {/* Descrição */}
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <FileText className="w-5 h-5 text-gray-600" />
@@ -518,7 +600,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 />
               </div>
 
-              {/* Serviços com Checkboxes */}
               <div className="bg-gradient-to-br from-emerald-50 to-white rounded-xl p-5 border border-emerald-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <Settings className="w-5 h-5 text-emerald-600" />
@@ -526,7 +607,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </h4>
 
                 <div className="space-y-6">
-                  {/* Serviços Internos */}
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-3">Serviços Internos</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -589,11 +669,9 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                     </div>
                   </div>
 
-                  {/* Serviços Externos */}
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-3">Serviços Externos</p>
                     <div className="space-y-4">
-                      {/* Decoração Externa */}
                       <div className="space-y-3">
                         <FormField
                           name="decoracaoExterna"
@@ -634,7 +712,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         )}
                       </div>
 
-                      {/* Catering Externo */}
                       <div className="space-y-3">
                         <FormField
                           name="cateringExterno"
@@ -675,7 +752,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                         )}
                       </div>
 
-                      {/* DJ Externo */}
                       <div className="space-y-3">
                         <FormField
                           name="djExterno"
@@ -720,7 +796,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </div>
               </div>
 
-              {/* Produção com Checkbox */}
               <div className="bg-gradient-to-br from-amber-50 to-white rounded-xl p-5 border border-amber-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <Settings className="w-5 h-5 text-amber-600" />
@@ -775,7 +850,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </div>
               </div>
 
-              {/* Outras Informações */}
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-200">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
                   <FileText className="w-5 h-5 text-blue-600" />
@@ -798,7 +872,6 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 />
               </div>
 
-              {/* Erro */}
               {reservaError && (
                 <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
@@ -806,14 +879,10 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </div>
               )}
 
-              {/* Botões de Ação */}
               <div className="flex space-x-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    console.log("🔵 Cancelando criação de reserva");
-                    onClose();
-                  }}
+                  onClick={onClose}
                   disabled={isSubmitting || reservaLoading}
                   className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -821,15 +890,19 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || reservaLoading || !disponibilidadeVerificada}
+                  disabled={
+                    isSubmitting || 
+                    reservaLoading || 
+                    (!isEditing && !disponibilidadeVerificada)
+                  }
                   className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting || reservaLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Processando...</span>
+                      <span>{isEditing ? 'Atualizando...' : 'Processando...'}</span>
                     </>
-                  ) : !disponibilidadeVerificada ? (
+                  ) : !isEditing && !disponibilidadeVerificada ? (
                     <>
                       <AlertCircle className="h-5 w-5" />
                       <span>Verifique Disponibilidade</span>
@@ -837,7 +910,7 @@ export default function FormCreairReserva({ onClose, handleReserva }: IFormCreai
                   ) : (
                     <>
                       <CheckCircle2 className="h-5 w-5" />
-                      <span>Solicitar Reserva</span>
+                      <span>{isEditing ? 'Atualizar Reserva' : 'Solicitar Reserva'}</span>
                     </>
                   )}
                 </button>
