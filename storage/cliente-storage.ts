@@ -144,7 +144,7 @@ export interface ReservaCompleta {
   paymentStatus: 'PENDENTE' | 'PARCIALMENTE_PAGO' | 'PAGO' | 'VENCIDO';
 
   // Status e detalhes
-  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO' |  'Rascunho' | 'RASCUNHO' | "Cancelada" ;
+  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO' | 'CONCLUIDO' | 'Rascunho' | 'RASCUNHO' | "Cancelada";
   participants: number;
   paymentMethod?: string;
   description?: string;
@@ -461,6 +461,7 @@ export interface FiltroCalendarioPortal {
   dataInicio: string; // YYYY-MM-DD
   dataFim: string;    // YYYY-MM-DD
   espacoId?: string;
+  reservaIdExcluir?: string; // 🔥 NOVO: para ignorar na edição
 }
 
 export const FILTRO_CALENDARIO_PORTAL_DEFAULT: FiltroCalendarioPortal = {
@@ -500,6 +501,7 @@ export const useClienteReservasStore = create<ClienteReservasStore>((set, get) =
     console.log("📅 Data Início:", filtro.dataInicio);
     console.log("📅 Data Fim:", filtro.dataFim);
     console.log("📅 Espaço ID:", filtro.espacoId || 'todos');
+    console.log(filtro)
 
     set({ loadingCalendarioPortal: true, errorCalendarioPortal: null });
 

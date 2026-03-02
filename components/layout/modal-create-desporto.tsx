@@ -235,7 +235,7 @@ export default function FormcrearDesporto({
                     diasSemana: (desporto.diasSemana || []).map(mapDiaSemana),
                     horarioInicio: desporto.horarioInicio,
                     horarioFim: desporto.horarioFim,
-                    tipoAtividade: desporto.tipoAtividade?._id || desporto.tipoAtividade,
+                    tipoAtividade: typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade?._id : desporto.tipoAtividade,
                     corIdentificacao: desporto.corIdentificacao,
                     valorPagamento: desporto.valorPagamento || 0,
                     modalidadePagamento: desporto.modalidadePagamento || 'Mensal',
@@ -246,7 +246,7 @@ export default function FormcrearDesporto({
                     dataInicio: new Date(desporto.dataInicio),
                     dataFim: desporto.dataFim ? new Date(desporto.dataFim) : undefined,
                     status: desporto.status as any,
-                    campo: desporto.campo?._id || desporto.campo,
+                    campo: typeof desporto.campo === 'object' ? desporto.campo?._id : desporto.campo,
                     statusPagamento: desporto.statusPagamento || 'Pendente',
                     observacoesAdicionais: desporto.observacoesAdicionais || '',
                 });

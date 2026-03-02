@@ -43,7 +43,7 @@ import { ModalPerfil } from '@/components/layout/modal-perfil';
 import FiltroReservas from '@/components/layout/filtro-reservas';
 import PaginacaoReservas from '@/components/layout/paginacao-reservas';
 import FiltroDesportos from '@/components/layout/filtro-desportos';
-import ModalCalendarioGeral from '@/components/layout/modal-calendario-geral';
+
 import Swal from 'sweetalert2';
 
 type ViewMode = 'cards' | 'table' | 'list';
@@ -337,9 +337,30 @@ export default function ClientPortalHome() {
     }).format(value);
   };
 
+  // Função para normalizar terminologias (masculino/feminino e sinônimos)
+  const normalizeStatusKey = (status: string) => {
+    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // Mapeamento de variações para chaves canônicas do STATUS_COLORS
+    const map: Record<string, string> = {
+      'Cancelado': 'Cancelada',
+      'Confirmado': 'Confirmada',
+      'Ativo': 'Confirmada',
+      'Concluido': 'Concluída',
+      'Concluído': 'Concluída',
+      'Expirado': 'Expirada',
+      'Processado': 'Processada',
+      'Pendente': 'Pendente',
+      'Rascunho': 'Rascunho',
+      'Vencido': 'Vencida',
+    };
+
+    return map[s] || s;
+  };
+
   const getStatusColor = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
+    const canonical = normalizeStatusKey(status);
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
   };
 
   const getStatusIcon = (status: string) => {
@@ -356,28 +377,32 @@ export default function ClientPortalHome() {
       'Vencida': <XCircle className="w-3.5 h-3.5" />,
       'Reembolsado': <CheckCircle className="w-3.5 h-3.5" />,
     };
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return icons[normalizedStatus] || <Clock className="w-3.5 h-3.5" />;
+    const canonical = normalizeStatusKey(status);
+    return icons[canonical] || <Clock className="w-3.5 h-3.5" />;
   };
 
   const getStatusDot = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.dot || STATUS_COLORS['Rascunho'].dot;
+    const canonical = normalizeStatusKey(status);
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.dot || STATUS_COLORS['Rascunho'].dot;
   };
 
   const getCaucaoColor = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
+    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    const map: Record<string, string> = {
+      'Ativo': 'Ativa',
+    };
+    const canonical = map[s] || s;
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
   };
 
   // Função helper para exibir status ao usuário
-  const getDisplayStatus = (status: string, totalPago: number) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  const getDisplayStatus = (status: string, totalPago: number = 0) => {
+    const canonical = normalizeStatusKey(status);
     // Se está cancelada mas tem pagamento, mostrar como "Expirada"
-    if (normalizedStatus === 'Cancelada' && totalPago > 0) {
+    if (canonical === 'Cancelada' && totalPago > 0) {
       return 'Expirada';
     }
-    return normalizedStatus;
+    return canonical;
   };
 
   const handleLogout = async () => {
@@ -652,28 +677,26 @@ export default function ClientPortalHome() {
                 {renderCaucaoInfo(res)}
 
                 <div className="flex flex-row flex-wrap gap-3 pt-2 justify-center">
-                  {res.status === 'Rascunho' && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
-                        onClick={() => openModal('RegistarReserva', res._id)}
-                        title="Editar Reserva"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
-                        onClick={() => handleCancelarReserva(res._id)}
-                        title="Cancelar Reserva"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
+                    onClick={() => openModal('RegistarReserva', res._id)}
+                    title="Editar Reserva"
+                    disabled={res.status !== 'Rascunho'}
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
+                    onClick={() => handleCancelarReserva(res._id)}
+                    title="Cancelar Reserva"
+                    disabled={res.status !== 'Rascunho'}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="icon"
@@ -752,28 +775,26 @@ export default function ClientPortalHome() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-2">
-                          {res.status === 'Rascunho' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-blue-600 hover:bg-blue-50 flex items-center gap-1"
-                                onClick={() => openModal('RegistarReserva', res._id)}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                <span>Editar</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-rose-600 hover:bg-rose-50 flex items-center gap-1"
-                                onClick={() => handleCancelarReserva(res._id)}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Cancelar</span>
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600 hover:bg-blue-50 flex items-center gap-1"
+                            onClick={() => openModal('RegistarReserva', res._id)}
+                            disabled={res.status !== 'Rascunho'}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-rose-600 hover:bg-rose-50 flex items-center gap-1"
+                            onClick={() => handleCancelarReserva(res._id)}
+                            disabled={res.status !== 'Rascunho'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Cancelar</span>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -845,28 +866,26 @@ export default function ClientPortalHome() {
                     </div>
                   </div>
                   <div className="flex items-center flex-wrap justify-end gap-2 ml-4">
-                    {res.status === 'Rascunho' && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
-                          onClick={() => openModal('RegistarReserva', res._id)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span>Editar</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-2 border-rose-300 text-rose-700 hover:bg-rose-50 flex items-center gap-1"
-                          onClick={() => handleCancelarReserva(res._id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Cancelar</span>
-                        </Button>
-                      </>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                      onClick={() => openModal('RegistarReserva', res._id)}
+                      disabled={res.status !== 'Rascunho'}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 border-rose-300 text-rose-700 hover:bg-rose-50 flex items-center gap-1"
+                      onClick={() => handleCancelarReserva(res._id)}
+                      disabled={res.status !== 'Rascunho'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Cancelar</span>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -929,9 +948,9 @@ export default function ClientPortalHome() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
-                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(desporto.status)}`}>
-                    {getStatusIcon(desporto.status)}
-                    <span className="ml-1">{desporto.status}</span>
+                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                    {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                    <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                   </Badge>
                 </div>
               </div>
@@ -964,41 +983,36 @@ export default function ClientPortalHome() {
 
               {/* LINHA DE BOTÕES - unificada em linha com wrap responsivo */}
               <div className="flex flex-row flex-wrap gap-3 pt-2 justify-center">
-                {/* BOTÃO EDITAR*/}
-                {desporto.status === 'Expirado' || desporto.status === 'Rascunho' && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
-                    onClick={() => setShowModal({
-                      type: 'RegistarDesporto',
-                      item: desporto._id
-                    })}
-                    title="Editar Atividade"
-                  >
-                    <Pencil className="w-5 h-5" />
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
+                  onClick={() => setShowModal({
+                    type: 'RegistarDesporto',
+                    item: desporto._id
+                  })}
+                  title="Editar Atividade"
+                  disabled={!(desporto.status === 'Expirado' || desporto.status === 'Rascunho')}
+                >
+                  <Pencil className="w-5 h-5" />
+                </Button>
 
-                {/* BOTÃO CANCELAR - para certos status */}
-                {desporto.status === 'Expirado' || desporto.status === 'Rascunho' && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
-                    onClick={() =>
-                      handleCancelarDesporto(
-                        desporto._id,
-                        desporto.nomeEquipe || desporto.tipoAtividade?.nome || 'atividade'
-                      )
-                    }
-                    title="Cancelar Atividade"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
+                  onClick={() =>
+                    handleCancelarDesporto(
+                      desporto._id,
+                      desporto.nomeEquipe || desporto.tipoAtividade?.nome || 'atividade'
+                    )
+                  }
+                  title="Cancelar Atividade"
+                  disabled={!(desporto.status === 'Expirado' || desporto.status === 'Rascunho')}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </Button>
 
-                {/* BOTÃO VER DETALHES - sempre disponível */}
                 <Button
                   variant="outline"
                   size="icon"
@@ -1079,41 +1093,37 @@ export default function ClientPortalHome() {
                       {calcularPendente(desporto.valorPagamento, desporto.valorPago, desporto.status)}
                     </TableCell>
                     <TableCell>
-                      <Badge className={`text-xs border ${getStatusColor(desporto.status)}`}>
-                        {getStatusIcon(desporto.status)}
-                        <span className="ml-1">{desporto.status}</span>
+                      <Badge className={`text-xs border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                        {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                        <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
-                        {/* Botão Editar na tabela */}
-                        {['Rascunho', 'Pendente'].includes(desporto.status) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
-                            onClick={() => setShowModal({
-                              type: 'RegistarDesporto',
-                              item: desporto._id
-                            })}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            <span>Editar</span>
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                          onClick={() => setShowModal({
+                            type: 'RegistarDesporto',
+                            item: desporto._id
+                          })}
+                          disabled={!['Rascunho', 'Pendente'].includes(desporto.status)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Editar</span>
+                        </Button>
 
-                        {/* Botão Cancelar na tabela */}
-                        {desporto.status !== 'Rascunho' && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
-                            onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Cancelar</span>
-                          </Button>
-                        )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
+                          onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
+                          disabled={desporto.status === 'Rascunho'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Cancelar</span>
+                        </Button>
 
                         <Button
                           variant="ghost"
@@ -1160,12 +1170,12 @@ export default function ClientPortalHome() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <div className={`w-3 h-3 rounded-full ${getStatusDot(desporto.status)}`} />
+                    <div className={`w-3 h-3 rounded-full ${getStatusDot(getDisplayStatus(desporto.status, desporto.valorPago))}`} />
                     <h4 className="font-semibold text-gray-900">
                       {desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}
                     </h4>
-                    <Badge className={`text-xs border ${getStatusColor(desporto.status)}`}>
-                      {desporto.status}
+                    <Badge className={`text-xs border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                      {getDisplayStatus(desporto.status, desporto.valorPago)}
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
@@ -1192,34 +1202,30 @@ export default function ClientPortalHome() {
                   </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2 ml-4">
-                  {/* Botão Editar na lista */}
-                  {['Rascunho', 'Pendente'].includes(desporto.status) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
-                      onClick={() => setShowModal({
-                        type: 'RegistarDesporto',
-                        item: desporto._id
-                      })}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>Editar</span>
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                    onClick={() => setShowModal({
+                      type: 'RegistarDesporto',
+                      item: desporto._id
+                    })}
+                    disabled={!['Rascunho', 'Pendente'].includes(desporto.status)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </Button>
 
-                  {/* Botão Cancelar na lista */}
-                  {desporto.status !== 'Cancelada' && desporto.status !== 'Concluída' && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
-                      onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Cancelar</span>
-                    </Button>
-                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
+                    onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
+                    disabled={desporto.status === 'Cancelada' || desporto.status === 'Concluída'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Cancelar</span>
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1592,9 +1598,9 @@ export default function ClientPortalHome() {
                                 <p className="font-medium text-gray-900">
                                   {res.espaco?.nome || res.tipoEvento?.nome || 'Reserva'}
                                 </p>
-                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(res.status)}`}>
-                                  {getStatusIcon(res.status)}
-                                  <span className="ml-1">{res.status}</span>
+                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(getDisplayStatus(res.status, res.totalPago))}`}>
+                                  {getStatusIcon(getDisplayStatus(res.status, res.totalPago))}
+                                  <span className="ml-1">{getDisplayStatus(res.status, res.totalPago)}</span>
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-600">
@@ -1624,9 +1630,9 @@ export default function ClientPortalHome() {
                             <div key={desporto._id} className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
                               <div className="flex justify-between items-start mb-2">
                                 <p className="font-medium text-gray-900">{desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}</p>
-                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(desporto.status)}`}>
-                                  {getStatusIcon(desporto.status)}
-                                  <span className="ml-1">{desporto.status}</span>
+                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                                  {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                                  <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-600">
