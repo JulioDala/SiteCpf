@@ -78,15 +78,18 @@ export default function ModalDetalheDesporto({ data, open, onClose }: ModalDetal
   };
 
   const getCaucaoColor = (status: string) => {
+    const s = status?.toUpperCase() || '';
+    if (s.includes('PENDENTE') && s.includes('DEVOL')) return 'bg-amber-50 text-amber-700 border-amber-200';
+
     const colors: Record<string, string> = {
-      Ativa: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      Devolvida: 'bg-blue-50 text-blue-700 border-blue-200',
-      'Com Prejuízos': 'bg-amber-50 text-amber-700 border-amber-200',
-      Expirada: 'bg-rose-50 text-rose-700 border-rose-200',
-      Concluída: 'bg-gray-50 text-gray-700 border-gray-200',
-      Pendente: 'bg-amber-50 text-amber-700 border-amber-200',
+      ATIVA: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      DEVOLVIDA: 'bg-blue-50 text-blue-700 border-blue-200',
+      'COM PREJUÍZOS': 'bg-amber-50 text-amber-700 border-amber-200',
+      EXPIRADA: 'bg-rose-50 text-rose-700 border-rose-200',
+      CONCLUÍDA: 'bg-gray-50 text-gray-700 border-gray-200',
+      PENDENTE: 'bg-amber-50 text-amber-700 border-amber-200',
     };
-    return colors[status] || 'bg-gray-50 text-gray-700 border-gray-200';
+    return colors[s] || colors[status] || 'bg-gray-50 text-gray-700 border-gray-200';
   };
 
   const getCampoName = (campo: any): string => {
@@ -266,12 +269,12 @@ export default function ModalDetalheDesporto({ data, open, onClose }: ModalDetal
                   {(displayData as any).pagamentos.map((pag: any) => (
                     <div key={pag._id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900 mb-1">{pag.dataPagamento ? new Date(pag.dataPagamento).toLocaleDateString('pt-PT') : '---'}</p>
-                        <p className="text-xs text-gray-500">{pag.observacoes || 'Mensalidade / Pagamento'}</p>
+                        <p className="text-sm font-medium text-gray-900 mb-1">{pag.dataPagamento ? new Date(pag.dataPagamento).toLocaleDateString('pt-PT') : (pag.createdAt ? new Date(pag.createdAt).toLocaleDateString('pt-PT') : '---')}</p>
+                        <p className="text-xs text-gray-500">{pag.observacoes || `Mensalidade / Pagamento (${pag.formaPagamento || 'N/A'})`}</p>
                       </div>
                       <div className="flex items-center space-x-4">
                         <p className="text-sm font-bold text-gray-900">{formatCurrency(pag.valorPago)} AOA</p>
-                        <span className={`px-3 py-1 rounded-md text-xs font-medium border ${getStatusColor(pag.status || 'PENDENTE')}`}>{pag.status || 'PENDENTE'}</span>
+                        <span className={`px-3 py-1 rounded-md text-xs font-medium border ${getStatusColor((pag.status || 'PENDENTE').toUpperCase())}`}>{pag.status || 'PENDENTE'}</span>
                       </div>
                     </div>
                   ))}

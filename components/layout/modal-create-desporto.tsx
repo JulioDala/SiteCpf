@@ -53,6 +53,7 @@ import { useDesportoStore, ICreateDesporto, UpdateDesportoDto } from '@/storage/
 import { useActividadeStore, ITipoAtividade } from "@/storage/cliente-desporto-actividade-store";
 import { useCampoStore, ICampo } from "@/storage/cliente-desporto-campo-store";
 import Swal from 'sweetalert2';
+import { CalendarioPickerDesporto } from './CalendarioPickerDesporto';
 
 interface IFormcrearDesporto {
     onClose: () => void;
@@ -85,6 +86,14 @@ const desportoSchema = z.object({
     campo: z.string().min(1, 'Campo é obrigatório'),
     statusPagamento: z.string().optional(),
     observacoesAdicionais: z.string().optional(),
+}).refine(data => {
+    if (!data.horarioInicio || !data.horarioFim) return true;
+    const [hIni, mIni] = data.horarioInicio.split(':').map(Number);
+    const [hFim, mFim] = data.horarioFim.split(':').map(Number);
+    return (hFim * 60 + mFim) > (hIni * 60 + mIni);
+}, {
+    message: "O horário de término deve ser posterior ao de início",
+    path: ["horarioFim"]
 });
 
 type DesportoFormData = z.infer<typeof desportoSchema>;
@@ -117,11 +126,12 @@ const tiposPeriodo = [
 ];
 
 const horariosDisponiveis = [
-    "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
-    "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
-    "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
-    "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30",
-    "22:00", "22:30", "23:00"
+    "00:00", "00:30", "01:00", "01:30", "02:00", "02:30", "03:00", "03:30",
+    "04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
+    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+    "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
+    "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
 ];
 
 export default function FormcrearDesporto({
@@ -131,6 +141,8 @@ export default function FormcrearDesporto({
 }: IFormcrearDesporto) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [conflitoInfo, setConflitoInfo] = useState<{ mensagem: string } | null>(null);
+    const [verificandoConflito, setVerificandoConflito] = useState(false);
 
     const initialData = (typeof desportoId === 'object' ? desportoId : null) as any;
     const actualId = (typeof desportoId === 'string' ? desportoId : (initialData?._id)) as string;
@@ -260,6 +272,72 @@ export default function FormcrearDesporto({
 
         carregarDadosEdicao();
     }, [actualId, clienteInfo?.email, fetchDesportoDetalhado, form]);
+
+    // Verificação de conflitos em tempo real
+    useEffect(() => {
+        const checkConflict = async () => {
+            const values = form.getValues();
+            const { campo, diasSemana, horarioInicio, horarioFim, dataInicio, dataFim } = values;
+
+            if (!campo || !diasSemana?.length || !horarioInicio || !horarioFim || !dataInicio) {
+                setConflitoInfo(null);
+                return;
+            }
+
+            setVerificandoConflito(true);
+            try {
+                const res = await useDesportoStore.getState().verificarConflitoDesporto({
+                    campo,
+                    diasSemana,
+                    horarioInicio,
+                    horarioFim,
+                    dataInicio,
+                    dataFim,
+                    excludeId: actualId
+                });
+
+                if (res.conflito) {
+                    const msg = res.mensagem || 'Existe um conflito de horário para este campo.';
+                    setConflitoInfo({ mensagem: msg });
+                    form.setError("horarioInicio", { type: "manual", message: "Conflito detetado" });
+                    form.setError("horarioFim", { type: "manual", message: "Conflito detetado" });
+                } else {
+                    setConflitoInfo(null);
+                    form.clearErrors(["horarioInicio", "horarioFim"]);
+                }
+            } catch (error) {
+                console.error("Erro ao verificar conflito:", error);
+                setConflitoInfo(null);
+                form.clearErrors(["horarioInicio", "horarioFim"]);
+            } finally {
+                setVerificandoConflito(false);
+            }
+        };
+
+        const subscription = form.watch((value, { name }) => {
+            if (['campo', 'diasSemana', 'horarioInicio', 'horarioFim', 'dataInicio', 'dataFim'].includes(name as string)) {
+                setConflitoInfo(null);
+                form.clearErrors(["horarioInicio", "horarioFim"]);
+            }
+        });
+
+        const timer = setTimeout(() => {
+            checkConflict();
+        }, 600);
+
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(timer);
+        };
+    }, [
+        form.watch('campo'),
+        form.watch('diasSemana'),
+        form.watch('horarioInicio'),
+        form.watch('horarioFim'),
+        form.watch('dataInicio'),
+        form.watch('dataFim'),
+        actualId
+    ]);
 
     const onSubmit = async (data: DesportoFormData) => {
         if (!clienteInfo?.email) return;
@@ -466,132 +544,165 @@ export default function FormcrearDesporto({
                                             )}
                                         />
                                     </div>
+
+                                    {/* Calendário Movido para o Passo 1 */}
+                                    <div className="w-full pt-4 border-t border-gray-100">
+                                        <CalendarioPickerDesporto
+                                            campoId={form.watch('campo')}
+                                            desportoId={actualId}
+                                            onPeriodoChange={(periodo) => {
+                                                if (periodo.dataInicio) form.setValue('dataInicio', new Date(periodo.dataInicio + 'T12:00:00'));
+                                                if (periodo.dataFim) form.setValue('dataFim', new Date(periodo.dataFim + 'T12:00:00'));
+                                            }}
+                                            onDataSelecionada={(dados) => {
+                                                if (dados.horaInicio) form.setValue('horarioInicio', dados.horaInicio);
+                                                if (dados.horaTermino) form.setValue('horarioFim', dados.horaTermino);
+                                                if (dados.data) {
+                                                    const novaData = new Date(dados.data + 'T12:00:00');
+                                                    form.setValue('dataInicio', novaData);
+
+                                                    const diaSemanaIndex = novaData.getDay();
+                                                    const diasMap = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                                                    const diaSelecionado = diasMap[diaSemanaIndex];
+
+                                                    const currentDias = form.getValues('diasSemana') || [];
+                                                    if (!currentDias.includes(diaSelecionado)) {
+                                                        form.setValue('diasSemana', [...currentDias, diaSelecionado]);
+                                                    }
+                                                }
+                                            }}
+                                            valorInicial={{
+                                                data: form.getValues('dataInicio')?.toISOString().split('T')[0],
+                                                horaInicio: form.getValues('horarioInicio'),
+                                                horaTermino: form.getValues('horarioFim')
+                                            }}
+                                            dataInicio={form.getValues('dataInicio')?.toISOString().split('T')[0]}
+                                            dataFim={form.getValues('dataFim')?.toISOString().split('T')[0]}
+                                        />
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+                                            <FormField
+                                                name="dataInicio"
+                                                render={() => <FormItem><FormMessage /></FormItem>}
+                                            />
+                                            <FormField
+                                                name="horarioInicio"
+                                                render={() => <FormItem><FormMessage /></FormItem>}
+                                            />
+                                            <FormField
+                                                name="horarioFim"
+                                                render={() => <FormItem><FormMessage /></FormItem>}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
                             {step === 2 && (
-                                <div className="space-y-6 animate-fadeIn">
-                                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-                                        <FormField
-                                            name="diasSemana"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="font-bold flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-600" /> Dias da Semana *</FormLabel>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                                                        {diasDaSemana.map(dia => (
-                                                            <div
-                                                                key={dia.value}
-                                                                onClick={() => {
-                                                                    const cur = field.value || [];
-                                                                    field.onChange(cur.includes(dia.value) ? cur.filter(v => v !== dia.value) : [...cur, dia.value]);
-                                                                }}
-                                                                className={cn(
-                                                                    "cursor-pointer p-2 text-center rounded-xl border-2 transition-all text-xs font-bold",
-                                                                    field.value?.includes(dia.value) ? "bg-emerald-600 border-emerald-600 text-white" : "border-gray-100 text-gray-400 hover:border-gray-200"
-                                                                )}
-                                                            >
-                                                                {dia.label.split('-')[0].substring(0, 3)}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
+                                <div className="space-y-6 animate-fadeIn pb-4">
+                                    <div className="flex flex-col gap-6">
+                                        <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm space-y-6">
+                                            <FormField
+                                                name="diasSemana"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="font-bold flex items-center gap-2 text-emerald-700">
+                                                            <Clock className="w-4 h-4" /> Dias Ativos da Atividade *
+                                                        </FormLabel>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                                                            {diasDaSemana.map(dia => (
+                                                                <div
+                                                                    key={dia.value}
+                                                                    onClick={() => {
+                                                                        const cur = field.value || [];
+                                                                        field.onChange(cur.includes(dia.value) ? cur.filter(v => v !== dia.value) : [...cur, dia.value]);
+                                                                    }}
+                                                                    className={cn(
+                                                                        "cursor-pointer p-2 text-center rounded-xl border-2 transition-all text-xs font-bold",
+                                                                        field.value?.includes(dia.value) ? "bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-100" : "border-emerald-50 text-emerald-400 bg-emerald-50/10 hover:border-emerald-200"
+                                                                    )}
+                                                                >
+                                                                    {dia.label.split('-')[0].substring(0, 3)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
 
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                            <FormField
-                                                name="horarioInicio"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-xs font-bold text-gray-400 uppercase">Início *</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
-                                                            <FormControl><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent className="bg-white max-h-[250px]">{horariosDisponiveis.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                name="horarioFim"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-xs font-bold text-gray-400 uppercase">Fim *</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
-                                                            <FormControl><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent className="bg-white max-h-[250px]">{horariosDisponiveis.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                name="corIdentificacao"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-xs font-bold text-gray-400 uppercase">Cor *</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value}>
-                                                            <FormControl><SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger></FormControl>
-                                                            <SelectContent className="bg-white">
-                                                                {coresIdentificacao.map(c => (
-                                                                    <SelectItem key={c.value} value={c.value}>
-                                                                        <div className="flex items-center gap-2"><div className={cn("w-3 h-3 rounded-full", c.color)} /> {c.label}</div>
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                <FormField
+                                                    name="horarioInicio"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Início Selecionado</FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl><SelectTrigger className="h-11 rounded-xl border-emerald-100 focus:ring-emerald-500"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent className="bg-white max-h-[250px] border-emerald-100">{horariosDisponiveis.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    name="horarioFim"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fim Selecionado</FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl><SelectTrigger className="h-11 rounded-xl border-emerald-100 focus:ring-emerald-500"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent className="bg-white max-h-[250px] border-emerald-100">{horariosDisponiveis.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    name="tipoPeriodo"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Regime / Duração</FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl><SelectTrigger className="h-11 rounded-xl border-emerald-100 focus:ring-emerald-500"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent className="bg-white border-emerald-100">{tiposPeriodo.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    name="corIdentificacao"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cor de Identificação</FormLabel>
+                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl><SelectTrigger className="h-11 rounded-xl border-emerald-100"><SelectValue /></SelectTrigger></FormControl>
+                                                                <SelectContent className="bg-white">
+                                                                    {coresIdentificacao.map(c => (
+                                                                        <SelectItem key={c.value} value={c.value}>
+                                                                            <div className="flex items-center gap-2"><div className={cn("w-3 h-3 rounded-full", c.color)} /> {c.label}</div>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-emerald-50/20 p-6 rounded-2xl border border-emerald-100/50 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <FormField
-                                            name="dataInicio"
-                                            render={({ field }) => (
-                                                <FormItem className="flex flex-col">
-                                                    <FormLabel className="font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-emerald-600" /> Começa em *</FormLabel>
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button variant="outline" className="h-12 rounded-xl justify-start text-left font-semibold">{field.value ? format(field.value, "dd/MM/yyyy") : "Selecione"}</Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl"><Calendar mode="single" selected={field.value} onSelect={field.onChange} locale={pt} initialFocus /></PopoverContent>
-                                                    </Popover>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            name="dataFim"
-                                            render={({ field }) => (
-                                                <FormItem className="flex flex-col">
-                                                    <FormLabel className="font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-gray-400" /> Termina em</FormLabel>
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button variant="outline" className="h-12 rounded-xl justify-start text-left font-normal text-gray-500">{field.value ? format(field.value, "dd/MM/yyyy") : "A definir"}</Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl"><Calendar mode="single" selected={field.value} onSelect={field.onChange} locale={pt} initialFocus /></PopoverContent>
-                                                    </Popover>
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            name="tipoPeriodo"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="font-bold">Regime *</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl><SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger></FormControl>
-                                                        <SelectContent className="bg-white">{tiposPeriodo.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
+                                    {conflitoInfo && (
+                                        <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex gap-4 animate-shake">
+                                            <div className="p-3 bg-white rounded-xl shadow-sm h-fit">
+                                                <Shield className="w-6 h-6 text-red-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-red-900">Conflito de Agendamento</h4>
+                                                <p className="text-sm text-red-700/80 leading-relaxed">{conflitoInfo.mensagem}</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -613,6 +724,7 @@ export default function FormcrearDesporto({
                                                 <FormControl>
                                                     <Textarea placeholder="Acrescente aqui detalhes importantes sobre a atividade..." className="min-h-[150px] rounded-2xl bg-gray-50 border-gray-100 focus:bg-white transition-all shadow-none" {...field} />
                                                 </FormControl>
+                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
@@ -636,12 +748,18 @@ export default function FormcrearDesporto({
                     {step < 3 ? (
                         <Button
                             onClick={async () => {
-                                const fields = step === 1 ? ['nomeEquipe', 'tipoAtividade', 'campo'] : ['diasSemana', 'horarioInicio', 'horarioFim', 'dataInicio', 'tipoPeriodo'];
+                                const fields = step === 1 ? ['nomeEquipe', 'tipoAtividade', 'campo', 'dataInicio', 'horarioInicio', 'horarioFim'] : ['diasSemana', 'tipoPeriodo'];
                                 if (await form.trigger(fields as any)) setStep(step + 1);
                             }}
-                            className="h-12 px-10 rounded-xl bg-gray-900 hover:bg-black text-white font-bold shadow-xl transition-all"
+                            disabled={step === 2 && (conflitoInfo !== null || verificandoConflito)}
+                            className={cn(
+                                "h-12 px-10 rounded-xl font-bold shadow-xl transition-all",
+                                step === 2 && (conflitoInfo !== null || verificandoConflito)
+                                    ? "bg-gray-300 cursor-not-allowed"
+                                    : "bg-gray-900 hover:bg-black text-white"
+                            )}
                         >
-                            Continuar
+                            {verificandoConflito ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continuar'}
                         </Button>
                     ) : (
                         <Button

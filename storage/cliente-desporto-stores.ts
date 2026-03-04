@@ -221,6 +221,53 @@ export interface UpdateDesportoDto {
   observacoesAdicionais?: string;
 
 }
+// Calendário
+export interface IntervaloPortal {
+  inicio: string;
+  fim: string;
+}
+
+export interface ReservaCalendarioPortal {
+  id: string;
+  horaInicio: string;
+  horaFim: string;
+  status: string;
+  espaco: string;
+  evento: string;
+}
+
+export interface DiaCalendarioPortal {
+  dataCompleta: string;
+  diaNumero: number;
+  vazio: boolean;
+  temDisponibilidade: boolean;
+  bloqueadoPorProducao: boolean;
+  fimDeSemana: boolean;
+  feriado: boolean;
+  reservas: ReservaCalendarioPortal[];
+  intervalosOcupados: IntervaloPortal[];
+  intervalosDisponiveis: IntervaloPortal[];
+}
+
+export interface CalendarioPortalResponse {
+  periodo: {
+    dataInicio: string;
+    dataFim: string;
+    totalDias: number;
+  };
+  dias: DiaCalendarioPortal[];
+  configuracao: {
+    horarioFuncionamento: {
+      inicio: string;
+      fim: string;
+    };
+    intervalosReserva: {
+      duracaoMinima: number;
+      intervaloMinimo: number;
+    };
+  };
+}
+
 export interface DesportoDetalhado {
   _id: string;
 
@@ -323,6 +370,24 @@ interface IUseDesportoStore {
   createDesporto: (data: ICreateDesporto) => Promise<IDesportoRetorno>;
   fetchDesportoDetalhado: (id: string) => Promise<IDesportoRetorno>;
   loading: boolean;
+  verificarConflitoDesporto: (params: {
+    campo: string;
+    diasSemana: string[];
+    horarioInicio: string;
+    horarioFim: string;
+    dataInicio: Date;
+    dataFim?: Date;
+    excludeId?: string;
+  }) => Promise<{ conflito: boolean; mensagem?: string }>;
+
+  calendarioDesporto: CalendarioPortalResponse | null;
+  loadingCalendario: boolean;
+  fetchCalendarioDesporto: (params: {
+    dataInicio: string;
+    dataFim: string;
+    campoId?: string;
+    desportoIdExcluir?: string;
+  }) => Promise<CalendarioPortalResponse>;
 }
 // storage/types/filtro-desporto.type.ts
 export enum OrdenacaoDesporto {
@@ -829,6 +894,28 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
     }
   },
 
+  // Método para verificar conflitos antes de submeter
+  verificarConflitoDesporto: async (params) => {
+    try {
+      const searchParams = new URLSearchParams();
+      searchParams.append('campo', params.campo);
+      params.diasSemana.forEach(d => searchParams.append('diasSemana', d));
+      searchParams.append('horarioInicio', params.horarioInicio);
+      searchParams.append('horarioFim', params.horarioFim);
+      searchParams.append('dataInicio', params.dataInicio instanceof Date ? params.dataInicio.toISOString() : params.dataInicio);
+      if (params.dataFim) searchParams.append('dataFim', params.dataFim instanceof Date ? params.dataFim.toISOString() : params.dataFim);
+      if (params.excludeId) searchParams.append('excludeId', params.excludeId);
+
+      const response = await clienteApi.get<{ conflito: boolean; mensagem?: string }>(
+        `/desporto-portal/verificar-conflito?${searchParams.toString()}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao verificar conflito:', error);
+      return { conflito: false };
+    }
+  },
+
   // Método para criar desporto
   createDesporto: async (data: ICreateDesporto) => {
     try {
@@ -854,6 +941,24 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
         error.message ||
         'Erro ao criar desporto'
       );
+    }
+  },
+
+  calendarioDesporto: null,
+  loadingCalendario: false,
+  fetchCalendarioDesporto: async (params) => {
+    set({ loadingCalendario: true });
+    try {
+      const response = await clienteApi.post<CalendarioPortalResponse>(
+        '/desporto-portal/calendario',
+        params
+      );
+      set({ calendarioDesporto: response.data, loadingCalendario: false });
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao buscar calendário de desporto:', error);
+      set({ loadingCalendario: false });
+      throw error;
     }
   },
 }));

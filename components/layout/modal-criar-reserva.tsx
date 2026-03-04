@@ -118,6 +118,8 @@ export default function FormCreairReserva({
       data: format(new Date(), 'yyyy-MM-dd'),
       horaInicio: '08:00',
       horaTermino: '10:00',
+      espacoId: '',
+      eventoId: '',
       participants: 1,
       valor: 0,
       description: '',
@@ -467,6 +469,20 @@ export default function FormCreairReserva({
                           onDataSelecionada={handleCalendarioSelecionado}
                           reservaId={isEditing ? reservaId : undefined}
                         />
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <FormField
+                            name="data"
+                            render={() => <FormItem><FormMessage /></FormItem>}
+                          />
+                          <FormField
+                            name="horaInicio"
+                            render={() => <FormItem><FormMessage /></FormItem>}
+                          />
+                          <FormField
+                            name="horaTermino"
+                            render={() => <FormItem><FormMessage /></FormItem>}
+                          />
+                        </div>
                         {!form.watch('espacoId') && (
                           <div className="p-8 border-2 border-dashed border-gray-100 rounded-2xl text-center bg-gray-50/30">
                             <Info className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -491,7 +507,13 @@ export default function FormCreairReserva({
                           name="participants"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="font-bold text-sm text-gray-700">Expectativa de Pessoas *</FormLabel>
+                              <FormLabel className="font-bold text-sm text-gray-700">
+                                Expectativa de Pessoas {(() => {
+                                  const espacoId = form.watch('espacoId');
+                                  const espaco = espacos.find(e => e._id === espacoId);
+                                  return espaco ? `(Máx: ${espaco.capacidade} pessoas)` : '';
+                                })()} *
+                              </FormLabel>
                               <FormControl>
                                 <div className="relative group">
                                   <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-purple-500 transition-colors" />
@@ -520,6 +542,7 @@ export default function FormCreairReserva({
                                   {...field}
                                 />
                               </FormControl>
+                              <FormMessage />
                             </FormItem>
                           )}
                         />
@@ -552,7 +575,7 @@ export default function FormCreairReserva({
                                       <span className="text-xl">{servico.icon}</span>
                                       <span className="text-sm font-semibold text-gray-700">{servico.label}</span>
                                     </div>
-                                    <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-purple-600" />
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-600 data-[state=unchecked]:bg-gray-200" />
                                   </div>
                                 )}
                               />
@@ -575,7 +598,7 @@ export default function FormCreairReserva({
                                   render={({ field }) => (
                                     <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm border-l-4 border-l-blue-500">
                                       <span className="text-sm font-semibold text-gray-700">{servico.label}</span>
-                                      <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-blue-500" />
+                                      <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-gray-200" />
                                     </div>
                                   )}
                                 />
@@ -627,7 +650,7 @@ export default function FormCreairReserva({
                                   <p className="text-sm font-bold text-gray-800">Montagem Antecipada?</p>
                                   <p className="text-[10px] text-gray-500">Necessito de dias para produção/montagem</p>
                                 </div>
-                                <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-purple-600" />
+                                <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-600 data-[state=unchecked]:bg-gray-200" />
                               </div>
                             )}
                           />
@@ -638,6 +661,7 @@ export default function FormCreairReserva({
                                 <FormItem className="animate-fadeIn">
                                   <FormLabel className="text-xs font-bold text-gray-500">Quantos dias de antecedência? *</FormLabel>
                                   <FormControl><Input type="number" className="h-12 rounded-xl" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} /></FormControl>
+                                  <FormMessage />
                                 </FormItem>
                               )}
                             />

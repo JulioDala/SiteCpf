@@ -281,17 +281,18 @@ export function ContratoEventoPreview({
             padding: 0 6px;
             font-size: 12px;
             font-weight: 700;
-            color: #000;
+            color: #10b981;
             background: transparent;
-            border: none;
+            border: 1px solid #10b981;
+            border-radius: 4px;
             box-sizing: border-box;
             vertical-align: middle;
+            min-width: 18px;
+            min-height: 18px;
           }
           .checkbox.selected {
-            padding: 0 7px;
-            min-width: 20px;
-            min-height: 20px;
-            font-size: 12px;
+            background-color: #10b981;
+            color: white;
           }
           @media print {
             .checkbox {
