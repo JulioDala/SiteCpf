@@ -1,19 +1,67 @@
-// modal-detalhe-reserva-updated.tsx
-'use client';
-import React, { JSX, useState } from 'react';
-import { X, Calendar, Clock, Users, FileText, CreditCard, Shield, Award, MapPin, DollarSign, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
-import { ReservaCompleta } from '@/storage/cliente-storage';
+import React, { JSX, useState, useEffect, useRef } from 'react';
+import { X, Calendar, Clock, Users, FileText, CreditCard, Shield, Award, MapPin, DollarSign, CheckCircle, AlertCircle, XCircle, Loader2, Edit } from 'lucide-react';
+import { ReservaCompleta, useClienteReservasStore } from '@/storage/cliente-storage';
+import { useAuthStore } from '@/storage/atuh-storage';
+import { Button } from '@/components/ui/button';
+import { ContratoEventoPreview, DoceEventoData } from './contrato-evento-preview';
 
 interface ModalProps {
-  data: ReservaCompleta;
+  data: ReservaCompleta | null;
   open: boolean;
   onClose: () => void;
+  onEdit?: (id: string) => void;
+  isLoading?: boolean;
 }
 
-export default function ModalDetalheReservaUpdated({ data, open, onClose }: ModalProps) {
+export default function ModalDetalheReservaUpdated({ data: initialData, open, onClose, onEdit, isLoading: externalLoading = false }: ModalProps) {
   const [activeTab, setActiveTab] = useState('informacoes');
+  const [detailedReserva, setDetailedReserva] = useState<ReservaCompleta | null>(null);
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [showContratoPreview, setShowContratoPreview] = useState(false);
+  const [contratoData, setContratoData] = useState<DoceEventoData | null>(null);
+  const hasLoadedRef = useRef<string | null>(null);
+
+  // ✅ Otimizado com seletores para evitar re-renders desnecessários
+  const getClienteCompletoEspecificoPopulate = useClienteReservasStore(s => s.getClienteCompletoEspecificoPopulate);
+  const reservaEspecifica = useClienteReservasStore(s => s.reservaEspecifica);
+  const userLogin = useAuthStore(s => s.userLogin);
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      if (open && initialData?._id && userLogin?.cliente.numeroCliente) {
+        // ✅ Guarda para evitar loop infinito: se já carregou este ID, não carregar novamente
+        if (hasLoadedRef.current === initialData._id) return;
+
+        try {
+          setInternalLoading(true);
+          hasLoadedRef.current = initialData._id; // Bloquear imediatamente
+
+          await getClienteCompletoEspecificoPopulate(userLogin.cliente.numeroCliente, initialData._id);
+        } catch (error) {
+          console.error("Erro ao carregar detalhes da reserva:", error);
+          hasLoadedRef.current = null; // Reset em caso de erro para permitir nova tentativa
+        } finally {
+          setInternalLoading(false);
+        }
+      } else if (!open) {
+        // Reset ao fechar o modal para que ao abrir outro (ou o mesmo) ele possa carregar
+        hasLoadedRef.current = null;
+      }
+    };
+
+    loadDetails();
+  }, [open, initialData?._id, userLogin?.cliente.numeroCliente, getClienteCompletoEspecificoPopulate]);
+
+  useEffect(() => {
+    if (reservaEspecifica && reservaEspecifica.reserva._id === initialData?._id) {
+      setDetailedReserva(reservaEspecifica.reserva);
+    }
+  }, [reservaEspecifica, initialData?._id]);
 
   if (!open) return null;
+
+  const isLoading = externalLoading || internalLoading;
+  const data = detailedReserva || initialData;
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -66,11 +114,45 @@ export default function ModalDetalheReservaUpdated({ data, open, onClose }: Moda
     return normalizedStatus;
   };
 
-  const espaco = data.espaco || data.espacoId;
-  const tipoEvento = data.tipoEvento || data.eventoId;
-  const pagamentos = data.pagamentosDetalhes || data.pagamentos || [];
-  const caucao = data.caucoes?.[0];
-  const displayStatus = getDisplayStatus(data.status, data.totalPago);
+  const handleGerarContrato = () => {
+    if (!data) return;
+
+    const dataPreview: DoceEventoData = {
+      clienteNome: userLogin?.cliente.nome || '',
+      clienteTelefone: userLogin?.cliente.telefone || '',
+      clienteWhatsapp: userLogin?.cliente.whatsapp || '',
+      clienteEmail: userLogin?.cliente.email || '',
+      clienteBiPassaporte: userLogin?.cliente.biPassaporte || '',
+      clienteMorada: userLogin?.cliente.morada || '',
+      clienteTipo: userLogin?.cliente.tipo || 'comum',
+      tipoEvento: data.tipoEvento?.nome || (data as any).eventoId?.nome || '',
+      tipoEventoId: data.tipoEvento?._id || (data as any).eventoId?._id,
+      espacoId: data.espaco?._id || (data as any).espacoId?._id || (data as any).espacoId || '',
+      dataEvento: data.data,
+      horaInicio: data.horaInicio,
+      horaTermino: data.horaTermino,
+      numeroConvidados: data.participants?.toString() || '0',
+      decoracaoInterna: (data as any).decoracaoInterna || false,
+      cateringInterno: (data as any).cateringInterno || false,
+      djInterno: (data as any).djInterno || false,
+      decoracaoExterna: (data as any).decoracaoExterna || false,
+      cateringExterno: (data as any).cateringExterno || false,
+      djExterno: (data as any).djExterno || false,
+      contactoDecoradora: (data as any).contactoDecoradora || '',
+      contactoCatering: (data as any).contactoCatering || '',
+      contactoDJ: (data as any).contactoDJ || '',
+      outrasInformacoes: (data as any).outrasInformacoes || data.description || '',
+    };
+
+    setContratoData(dataPreview);
+    setShowContratoPreview(true);
+  };
+
+  const espaco = data?.espaco || data?.espacoId;
+  const tipoEvento = data?.tipoEvento || data?.eventoId;
+  const pagamentos = data?.pagamentosDetalhes || data?.pagamentos || [];
+  const caucao = data?.caucoes?.[0];
+  const displayStatus = data ? getDisplayStatus(data.status, data.totalPago) : '';
 
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === undefined || value === null || isNaN(value)) return '0';
@@ -363,8 +445,8 @@ export default function ModalDetalheReservaUpdated({ data, open, onClose }: Moda
                           <div className="flex justify-between items-start mb-2">
                             <p className="text-sm font-medium text-gray-900">{prej.descricao}</p>
                             <span className={`px-2.5 py-1 rounded text-xs font-medium ${prej.status === 'Aprovado' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                                prej.status === 'Rejeitado' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
-                                  'bg-amber-100 text-amber-700 border border-amber-200'
+                              prej.status === 'Rejeitado' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                'bg-amber-100 text-amber-700 border border-amber-200'
                               }`}>{prej.status}</span>
                           </div>
                           <p className="text-xs text-gray-600 mb-1">Valor: {formatCurrency(prej.valorEstimado)} AOA</p>
@@ -398,13 +480,39 @@ export default function ModalDetalheReservaUpdated({ data, open, onClose }: Moda
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Detalhes da Reserva</h2>
-              <p className="text-sm text-gray-500">Referência: {data.ref}</p>
+              {data && <p className="text-sm text-gray-500">Referência: {data.ref}</p>}
             </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="Fechar"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {data?.status === 'Rascunho' && onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onEdit(data._id)}
+                  className="flex items-center gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+                  disabled={isLoading}
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Editar</span>
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGerarContrato}
+                className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                disabled={isLoading || !data}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Contrato</span>
+              </Button>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -427,8 +535,28 @@ export default function ModalDetalheReservaUpdated({ data, open, onClose }: Moda
           </nav>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] bg-white">
-          {renderTabContent()}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] bg-white relative min-h-[400px]">
+          {showContratoPreview && contratoData ? (
+            <ContratoEventoPreview
+              data={contratoData}
+              onBack={() => setShowContratoPreview(false)}
+            />
+          ) : (
+            <>
+              {isLoading && (
+                <div className="absolute inset-x-0 bottom-0 top-0 bg-white/60 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center animate-in fade-in duration-300">
+                  <div className="bg-white p-8 rounded-2xl shadow-xl border border-emerald-100 flex flex-col items-center gap-4">
+                    <div className="relative">
+                      <div className="w-12 h-12 border-4 border-emerald-100 rounded-full"></div>
+                      <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+                    </div>
+                    <span className="text-emerald-700 font-medium animate-pulse">A carregar detalhes...</span>
+                  </div>
+                </div>
+              )}
+              {data && renderTabContent()}
+            </>
+          )}
         </div>
 
       </div>

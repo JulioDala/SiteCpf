@@ -193,6 +193,141 @@ export interface DesportoEstatisticas {
   totalDesporto: number;
 }
 
+// Adicione esta interface junto com as outras (ICreateDesporto, etc.)
+export interface UpdateDesportoDto {
+  nomeEquipe?: string;
+  nomeResponsavel?: string;
+  email?: string;
+  morada?: string;
+  bi?: string;
+  contato?: string;
+  diasSemana?: string[];
+  horarioInicio?: string;
+  horarioFim?: string;
+  tipoAtividade?: string;
+  corIdentificacao?: string;
+  valorPagamento?: number;
+  modalidadePagamento?: string;
+  tipoPeriodo?: string;
+  vendaIngresso?: string;
+  valorIngresso?: number;
+  valorCaucao?: number;
+  dataInicio?: string;
+  dataFim?: string;
+  situacao?: string;
+  status?: 'Ativo' | 'Pendente' | 'Suspenso' | 'Cancelado' | 'Rascunho' | 'Expirado';
+  campo?: string;
+  statusPagamento?: string;
+  observacoesAdicionais?: string;
+
+}
+// Calendário
+export interface IntervaloPortal {
+  inicio: string;
+  fim: string;
+}
+
+export interface ReservaCalendarioPortal {
+  id: string;
+  horaInicio: string;
+  horaFim: string;
+  status: string;
+  espaco: string;
+  evento: string;
+}
+
+export interface DiaCalendarioPortal {
+  dataCompleta: string;
+  diaNumero: number;
+  vazio: boolean;
+  temDisponibilidade: boolean;
+  bloqueadoPorProducao: boolean;
+  fimDeSemana: boolean;
+  feriado: boolean;
+  reservas: ReservaCalendarioPortal[];
+  intervalosOcupados: IntervaloPortal[];
+  intervalosDisponiveis: IntervaloPortal[];
+}
+
+export interface CalendarioPortalResponse {
+  periodo: {
+    dataInicio: string;
+    dataFim: string;
+    totalDias: number;
+  };
+  dias: DiaCalendarioPortal[];
+  configuracao: {
+    horarioFuncionamento: {
+      inicio: string;
+      fim: string;
+    };
+    intervalosReserva: {
+      duracaoMinima: number;
+      intervaloMinimo: number;
+    };
+  };
+}
+
+export interface DesportoDetalhado {
+  _id: string;
+
+  nomeEquipe: string;
+  email?: string;
+  morada?: string;
+  bi?: string;
+
+  nomeResponsavel: string;
+  contato: string;
+
+  diasSemana: string[];
+  horarioInicio: string;
+  horarioFim: string;
+
+  tipoAtividade: {
+    _id: string;
+    nome: string;
+    descricao?: string;
+    status: 'Ativo' | 'Inativo';
+  };
+
+  campo: {
+    _id: string;
+    nome: string;
+    status: 'Ativo' | 'Inativo';
+  };
+
+  corIdentificacao: string;
+  valorPagamento: number;
+  modalidadePagamento: string;
+  tipoPeriodo: string;
+
+  vendaIngresso: string;
+  valorIngresso: number;
+  valorCaucao: number;
+
+  dataInicio: Date;
+  dataFim?: Date;
+
+  situacao?: string;
+  status: string;
+  statusPagamento: string;
+
+  valorPago: number;
+  valorPendente?: number;
+  ultimoPagamento?: Date;
+
+  observacoesAdicionais?: string;
+  pagamentos?: any[];
+  caucoes?: any[];
+  totalPagamentos?: number;
+  totalPago?: number;
+  totalCaucoes?: number;
+  totalCaucaoPago?: number;
+  totalCaucaoPendente?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface IUseDesportoStore {
 
   // Novas propriedades para filtros e paginação
@@ -206,6 +341,10 @@ interface IUseDesportoStore {
   aplicarFiltroDesporto: (novoFiltro: Partial<FiltroDesporto>) => Promise<void>;
   limparFiltroDesporto: () => Promise<void>;
   mudarPaginaDesporto: (pagina: number) => Promise<void>;
+  //NOVO MÉTODO
+  error: string | null;
+  cancelarDesporto: (id: string) => Promise<IDesportoRetorno>;
+  updateDesporto: (id: string, data: UpdateDesportoDto) => Promise<IDesportoRetorno>;
 
   desportosFuturos: IDesportoRetorno[];
   fetchDesportosFuturos: (email: string) => Promise<IDesportoRetorno[]>;
@@ -229,7 +368,26 @@ interface IUseDesportoStore {
   fetchDesportoEspecifico: (email: string, id: string) => Promise<IDesportoRetorno[]>;
 
   createDesporto: (data: ICreateDesporto) => Promise<IDesportoRetorno>;
+  fetchDesportoDetalhado: (id: string) => Promise<IDesportoRetorno>;
   loading: boolean;
+  verificarConflitoDesporto: (params: {
+    campo: string;
+    diasSemana: string[];
+    horarioInicio: string;
+    horarioFim: string;
+    dataInicio: Date;
+    dataFim?: Date;
+    excludeId?: string;
+  }) => Promise<{ conflito: boolean; mensagem?: string }>;
+
+  calendarioDesporto: CalendarioPortalResponse | null;
+  loadingCalendario: boolean;
+  fetchCalendarioDesporto: (params: {
+    dataInicio: string;
+    dataFim: string;
+    campoId?: string;
+    desportoIdExcluir?: string;
+  }) => Promise<CalendarioPortalResponse>;
 }
 // storage/types/filtro-desporto.type.ts
 export enum OrdenacaoDesporto {
@@ -341,6 +499,173 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
   desportoEspecifico: null,
   loadingEspecifico: false,
   errorEspecifico: null,
+  error: null,
+  // ✅ NOVO MÉTODO: Buscar desporto detalhado por ID
+  fetchDesportoDetalhado: async (id: string) => {
+    console.log("🔵 ========== BUSCANDO DESPORTO DETALHADO ==========");
+    console.log("🔵 ID:", id);
+
+    set({ loadingEspecifico: true, errorEspecifico: null, desportoEspecifico: null });
+
+    try {
+      const response = await clienteApi.get<IDesportoRetorno>(
+        `/desporto-portal/detalhado/${id}`
+      );
+
+      const desportoDetalhado = response.data;
+
+      console.log("✅ ========== DESPORTO DETALHADO CARREGADO ==========");
+      console.log("✅ Dados:", desportoDetalhado);
+
+      set({
+        desportoEspecifico: desportoDetalhado,
+        loadingEspecifico: false,
+        errorEspecifico: null
+      });
+
+      return desportoDetalhado;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO BUSCAR DESPORTO DETALHADO ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        `Erro ao buscar desporto detalhado com ID ${id}`;
+
+      set({
+        loadingEspecifico: false,
+        errorEspecifico: errorMessage,
+        desportoEspecifico: null
+      });
+
+      throw error;
+    }
+  },
+
+  cancelarDesporto: async (id: string) => {
+    console.log("🔴 ========== CANCELANDO DESPORTO ==========");
+    console.log("🔴 ID:", id);
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await clienteApi.patch<IDesportoRetorno>(
+        `/desporto-portal/cancelar/${id}`
+      );
+
+      console.log("✅ ========== DESPORTO CANCELADO ==========");
+      console.log("✅ Resposta:", response.data);
+
+      // Atualiza o desporto específico se ele estiver carregado
+      const { desportoEspecifico } = get();
+      if (desportoEspecifico && desportoEspecifico._id === id) {
+        set({
+          desportoEspecifico: response.data,
+          loading: false
+        });
+      } else {
+        set({ loading: false });
+      }
+
+      // ✅ CORRIGIDO: Usar setTimeout para evitar loop infinito
+      setTimeout(() => {
+        if (response.data.email) {
+          get().fetchDesportosEstatistica(response.data.email).catch(console.error);
+          get().fetchDesportosFuturos(response.data.email).catch(console.error);
+        }
+
+        // Se tiver filtros ativos, recarrega a lista filtrada
+        const { filtroAtualDesporto } = get();
+        if (filtroAtualDesporto.email) {
+          get().getDesportosFiltrados(filtroAtualDesporto).catch(console.error);
+        }
+      }, 500);
+
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO CANCELAR DESPORTO ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao cancelar desporto';
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+  // ✅ NOVO MÉTODO: Atualizar desporto
+  updateDesporto: async (id: string, data: UpdateDesportoDto) => {
+    console.log("🔄 ========== ATUALIZANDO DESPORTO ==========");
+    console.log("🔄 ID:", id);
+    console.log("🔄 Dados:", data);
+
+    set({ loading: true, error: null });
+
+    try {
+      const response = await clienteApi.put<IDesportoRetorno>(
+        `/desporto-portal/update/${id}`,
+        data
+      );
+
+      console.log("✅ ========== DESPORTO ATUALIZADO ==========");
+      console.log("✅ Resposta:", response.data);
+
+      // Se o desporto atualizado for o que está carregado no estado específico,
+      // atualiza o estado para refletir as mudanças
+      const { desportoEspecifico } = get();
+      if (desportoEspecifico && desportoEspecifico._id === id) {
+        set({
+          desportoEspecifico: response.data,
+          loading: false
+        });
+      } else {
+        set({ loading: false });
+      }
+
+      // ✅ CORRIGIDO: Usar setTimeout para evitar loop infinito
+      // Recarrega os dados em background após um pequeno delay
+      setTimeout(() => {
+        if (data.email) {
+          get().fetchDesportosEstatistica(data.email).catch(console.error);
+          get().fetchDesportosFuturos(data.email).catch(console.error); // 👈 ADICIONADO
+        }
+
+        // Se tiver filtros ativos, recarrega a lista filtrada
+        const { filtroAtualDesporto } = get();
+        if (filtroAtualDesporto.email) {
+          get().getDesportosFiltrados(filtroAtualDesporto).catch(console.error);
+        }
+      }, 500);
+
+      return response.data;
+    } catch (error: any) {
+      console.error("❌ ========== ERRO AO ATUALIZAR DESPORTO ==========");
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Mensagem:", error.response?.data?.message);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Erro ao atualizar desporto';
+
+      set({
+        loading: false,
+        error: errorMessage,
+      });
+
+      throw error;
+    }
+  },
+
   getDesportosFiltrados: async (filtro: FiltroDesporto) => {
     console.log("🔵 ========== BUSCANDO DESPORTOS FILTRADOS ==========");
     console.log("🔵 Filtro:", filtro);
@@ -395,25 +720,25 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
   },
 
   // ✅ Aplicar filtro
- aplicarFiltroDesporto: async (novoFiltro: Partial<FiltroDesporto>) => {
-  const { filtroAtualDesporto } = get();
+  aplicarFiltroDesporto: async (novoFiltro: Partial<FiltroDesporto>) => {
+    const { filtroAtualDesporto } = get();
 
-  // Converter 'todos' para undefined (string vazia)
-  const filtroProcessado = {
-    ...novoFiltro,
-    status: novoFiltro.status === 'todos' ? undefined : novoFiltro.status,
-    statusPagamento: novoFiltro.statusPagamento === 'todos' ? undefined : novoFiltro.statusPagamento,
-    search: novoFiltro.search === '' ? undefined : novoFiltro.search,
-    pagina: 1, // Sempre voltar para página 1 ao aplicar filtro
-  };
+    // Converter 'todos' para undefined (string vazia)
+    const filtroProcessado = {
+      ...novoFiltro,
+      status: novoFiltro.status === 'todos' ? undefined : novoFiltro.status,
+      statusPagamento: novoFiltro.statusPagamento === 'todos' ? undefined : novoFiltro.statusPagamento,
+      search: novoFiltro.search === '' ? undefined : novoFiltro.search,
+      pagina: 1, // Sempre voltar para página 1 ao aplicar filtro
+    };
 
-  const filtroCompleto = {
-    ...filtroAtualDesporto,
-    ...filtroProcessado,
-  };
+    const filtroCompleto = {
+      ...filtroAtualDesporto,
+      ...filtroProcessado,
+    };
 
-  await get().getDesportosFiltrados(filtroCompleto);
-},
+    await get().getDesportosFiltrados(filtroCompleto);
+  },
 
   // ✅ Limpar filtro
   limparFiltroDesporto: async () => {
@@ -569,6 +894,28 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
     }
   },
 
+  // Método para verificar conflitos antes de submeter
+  verificarConflitoDesporto: async (params) => {
+    try {
+      const searchParams = new URLSearchParams();
+      searchParams.append('campo', params.campo);
+      params.diasSemana.forEach(d => searchParams.append('diasSemana', d));
+      searchParams.append('horarioInicio', params.horarioInicio);
+      searchParams.append('horarioFim', params.horarioFim);
+      searchParams.append('dataInicio', params.dataInicio instanceof Date ? params.dataInicio.toISOString() : params.dataInicio);
+      if (params.dataFim) searchParams.append('dataFim', params.dataFim instanceof Date ? params.dataFim.toISOString() : params.dataFim);
+      if (params.excludeId) searchParams.append('excludeId', params.excludeId);
+
+      const response = await clienteApi.get<{ conflito: boolean; mensagem?: string }>(
+        `/desporto-portal/verificar-conflito?${searchParams.toString()}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao verificar conflito:', error);
+      return { conflito: false };
+    }
+  },
+
   // Método para criar desporto
   createDesporto: async (data: ICreateDesporto) => {
     try {
@@ -594,6 +941,24 @@ export const useDesportoStore = create<IUseDesportoStore>((set, get) => ({
         error.message ||
         'Erro ao criar desporto'
       );
+    }
+  },
+
+  calendarioDesporto: null,
+  loadingCalendario: false,
+  fetchCalendarioDesporto: async (params) => {
+    set({ loadingCalendario: true });
+    try {
+      const response = await clienteApi.post<CalendarioPortalResponse>(
+        '/desporto-portal/calendario',
+        params
+      );
+      set({ calendarioDesporto: response.data, loadingCalendario: false });
+      return response.data;
+    } catch (error: any) {
+      console.error('Erro ao buscar calendário de desporto:', error);
+      set({ loadingCalendario: false });
+      throw error;
     }
   },
 }));

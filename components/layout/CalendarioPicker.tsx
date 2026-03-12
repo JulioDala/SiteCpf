@@ -85,7 +85,7 @@ export function CalendarioPicker({
           dataInicio,
           dataFim,
           espacoId,
-          ...(reservaId && { reservaId }) // Só adiciona se estiver editando
+          ...(reservaId && { reservaIdExcluir: reservaId }) // ✅ Corrigido: usando o nome esperado pelo backend
         });
       } catch (error) {
         console.error('Erro ao buscar calendário:', error);
@@ -236,7 +236,7 @@ export function CalendarioPicker({
           <div className="flex-1">
             <p className="text-red-700 font-semibold mb-2">Erro ao carregar calendário</p>
             <p className="text-red-600 text-sm mb-4">{errorCalendarioPortal}</p>
-            <Button onClick={() => setDataInicio(dataInicio)} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
+            <Button type="button" onClick={() => setDataInicio(dataInicio)} size="sm" className="bg-red-600 hover:bg-red-700 text-white">
               Tentar novamente
             </Button>
           </div>
@@ -345,6 +345,7 @@ export function CalendarioPicker({
                               dataSelecionada === dia.dataCompleta;
                             return (
                               <button
+                                type="button"
                                 key={`${intervalo.inicio}-${intervalo.fim}`}
                                 onClick={() => handleSelecionarIntervalo(dia.dataCompleta, intervalo)}
                                 className={`p-2 rounded-lg border-2 transition-all text-sm font-semibold ${isSelected

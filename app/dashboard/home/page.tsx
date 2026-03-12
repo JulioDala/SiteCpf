@@ -1,25 +1,28 @@
 'use client';
-import React, { JSX, useState, useEffect } from 'react';
+import React, { JSX, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Calendar, 
-  Dumbbell, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  XCircle, 
-  Plus, 
-  User, 
-  Bell, 
-  LogOut, 
-  FileText, 
-  TrendingUp, 
-  Award, 
-  Activity, 
+import {
+  Calendar,
+  Dumbbell,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Plus,
+  User,
+  Bell,
+  LogOut,
+  FileText,
+  TrendingUp,
+  Award,
+  Activity,
   Loader2,
   LayoutGrid,
   LayoutList,
   TableIcon,
+  Pencil,
+  Trash2,
+  Eye,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import ModalDetalheDesporto from '@/components/layout/modal-detalho-desporto';
-import ModalDetalheReserva from '@/components/layout/modal-detalhe-reserva';
+import ModalDetalheReservaUpdated from '@/components/layout/modal-detalhe-reserva';
 import { useClienteReservasStore, normalizarReserva, ReservaCompleta, FILTRO_CLIENTE_RESERVAS_DEFAULT } from '@/storage/cliente-storage';
 import { useAuthStore } from '@/storage/atuh-storage';
 import FormCreairReserva from '@/components/layout/modal-criar-reserva';
@@ -40,7 +43,7 @@ import { ModalPerfil } from '@/components/layout/modal-perfil';
 import FiltroReservas from '@/components/layout/filtro-reservas';
 import PaginacaoReservas from '@/components/layout/paginacao-reservas';
 import FiltroDesportos from '@/components/layout/filtro-desportos';
-import ModalCalendarioGeral from '@/components/layout/modal-calendario-geral';
+
 import Swal from 'sweetalert2';
 
 type ViewMode = 'cards' | 'table' | 'list';
@@ -124,8 +127,7 @@ const STATUS_COLORS = {
 
 export default function ClientPortalHome() {
   const router = useRouter();
-  const { userLogin, logout, isInitialized } = useAuthStore();
-  const [isFetchingAll, setIsFetchingAll] = useState(true);
+  const { userLogin, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [reservasViewMode, setReservasViewMode] = useState<ViewMode>('cards');
   const [desportosViewMode, setDesportosViewMode] = useState<ViewMode>('cards');
@@ -135,102 +137,134 @@ export default function ClientPortalHome() {
   const [showNotificacoesModal, setShowNotificacoesModal] = useState(false);
   const [showPerfilModal, setShowPerfilModal] = useState(false);
   const [showCalendarioModal, setShowCalendarioModal] = useState(false);
-  
 
   // ✅ Store de reservas
-  const {
-    clienteCompleto,
-    reservasFuturas,
-    loading,
-    error,
-    getClienteCompletoFiltrado,
-    getClienteComReservasFuturas,
-    clearError,
-    reservaEspecifica,
-    reservasPaginadas,
-    filtroAtual,
-    loadingFiltrado,
-    aplicarFiltro,
-    limparFiltro,
-    mudarPagina
-  } = useClienteReservasStore();
+  // ✅ Store de reservas - Otimizado com seletores
+  const clienteCompleto = useClienteReservasStore(s => s.clienteCompleto);
+  const reservasFuturas = useClienteReservasStore(s => s.reservasFuturas);
+  const loading = useClienteReservasStore(s => s.loading);
+  const error = useClienteReservasStore(s => s.error);
+  const getClienteCompletoFiltrado = useClienteReservasStore(s => s.getClienteCompletoFiltrado);
+  const getClienteComReservasFuturas = useClienteReservasStore(s => s.getClienteComReservasFuturas);
+  const clearError = useClienteReservasStore(s => s.clearError);
+  const reservaEspecifica = useClienteReservasStore(s => s.reservaEspecifica);
+  const reservasPaginadas = useClienteReservasStore(s => s.reservasPaginadas);
+  const filtroAtual = useClienteReservasStore(s => s.filtroAtual);
+  const loadingFiltrado = useClienteReservasStore(s => s.loadingFiltrado);
+  const aplicarFiltro = useClienteReservasStore(s => s.aplicarFiltro);
+  const limparFiltro = useClienteReservasStore(s => s.limparFiltro);
+  const mudarPagina = useClienteReservasStore(s => s.mudarPagina);
 
-  const {
-    desportosFuturos,
-    desportosCompletos,
-    desportoEstatistica,
-    fetchDesportosEstatistica,
-    desportosPaginados,
-    filtroAtualDesporto,
-    loadingFiltradoDesporto,
-    getDesportosFiltrados,
-    aplicarFiltroDesporto,
-    limparFiltroDesporto,
-    mudarPaginaDesporto,
-    errorEstatistica,
-    loadingEstatistica,
-    loadingFuturos: loadingDesportoFuturos,
-    errorFuturos: errorDesportoFuturos,
-    loadingCompletos: loadingDesportoCompletos,
-    errorCompletos: errorDesportoCompletos,
-    fetchDesportosFuturos,
-    fetchDesportosCompletos,
-    fetchDesportoEspecifico,
-    desportoEspecifico
-  } = useDesportoStore();
+  // ✅ Store de desporto - Otimizado com seletores
+  const desportosFuturos = useDesportoStore(s => s.desportosFuturos);
+  const desportoEstatistica = useDesportoStore(s => s.desportoEstatistica);
+  const fetchDesportosEstatistica = useDesportoStore(s => s.fetchDesportosEstatistica);
+  const desportosPaginados = useDesportoStore(s => s.desportosPaginados);
+  const filtroAtualDesporto = useDesportoStore(s => s.filtroAtualDesporto);
+  const loadingFiltradoDesporto = useDesportoStore(s => s.loadingFiltradoDesporto);
+  const getDesportosFiltrados = useDesportoStore(s => s.getDesportosFiltrados);
+  const aplicarFiltroDesporto = useDesportoStore(s => s.aplicarFiltroDesporto);
+  const limparFiltroDesporto = useDesportoStore(s => s.limparFiltroDesporto);
+  const mudarPaginaDesporto = useDesportoStore(s => s.mudarPaginaDesporto);
+  const errorEstatistica = useDesportoStore(s => s.errorEstatistica);
+  const loadingEstatistica = useDesportoStore(s => s.loadingEstatistica);
+  const loadingDesportoFuturos = useDesportoStore(s => s.loadingFuturos);
+  const errorDesportoFuturos = useDesportoStore(s => s.errorFuturos);
+  const fetchDesportosFuturos = useDesportoStore(s => s.fetchDesportosFuturos);
+  const fetchDesportoEspecifico = useDesportoStore(s => s.fetchDesportoEspecifico);
+  const desportoEspecifico = useDesportoStore(s => s.desportoEspecifico);
+  const cancelarDesporto = useDesportoStore(s => s.cancelarDesporto);
 
-  const {
-    fetchEstatisticaReserva,
-    cancelarReserva,
-    reservaEstatistica,
-    loadingEstatistica: loadingReservaEstatistica,
-    errorEstatistica: errorReservaEstatistica
-  } = useBackendReservaStore();
+  // ✅ Store de reserva backend - Otimizado com seletores
+  const fetchEstatisticaReserva = useBackendReservaStore(s => s.fetchEstatisticaReserva);
+  const cancelarReserva = useBackendReservaStore(s => s.cancelarReserva);
+  const reservaEstatistica = useBackendReservaStore(s => s.reservaEstatistica);
+  const loadingReservaEstatistica = useBackendReservaStore(s => s.loadingEstatistica);
+  const errorReservaEstatistica = useBackendReservaStore(s => s.errorEstatistica);
 
   const clientName = userLogin?.cliente.nome || "Jose da Costa Quinanga";
   const numeroCliente = userLogin?.cliente.numeroCliente || "";
   const email = userLogin?.cliente.email || "";
   const idCliente = userLogin?.cliente._id || "";
 
+  // ✅ Refs para controlar carregamento e evitar loops infinitos
+  const hasLoadedOverviewRef = useRef<string | null>(null);
+  const hasLoadedReservasTabRef = useRef<string | null>(null);
+  const hasLoadedDesportoTabRef = useRef<string | null>(null);
+
+  // ✅ Efeito 1: Carregar dados do OVERVIEW (sempre no início ou quando volta à tab)
   useEffect(() => {
-    if (!isInitialized) return;
+    if (activeTab !== 'overview') return;
 
-    const loadData = async () => {
-      if (!numeroCliente && !email) {
-        setIsFetchingAll(false);
-        return;
-      }
+    // ✅ Verifica se já carregou os dados do Overview para este cliente/email
+    const currentKey = `${numeroCliente}-${email}-${idCliente}`;
+    if (hasLoadedOverviewRef.current === currentKey) return;
 
-      setIsFetchingAll(true);
+    const loadOverviewData = async () => {
       try {
-        await Promise.all([
-          numeroCliente ? getClienteCompletoFiltrado({ ...FILTRO_CLIENTE_RESERVAS_DEFAULT, numeroCliente }) : Promise.resolve(),
-          numeroCliente ? getClienteComReservasFuturas(numeroCliente) : Promise.resolve(),
-          email ? getDesportosFiltrados({ ...FILTRO_DESPORTO_DEFAULT, email }) : Promise.resolve(),
-          email ? fetchDesportosFuturos(email) : Promise.resolve(),
-          email ? fetchDesportosCompletos(email) : Promise.resolve(),
-          email ? fetchDesportosEstatistica(email) : Promise.resolve(),
-          idCliente ? fetchEstatisticaReserva(idCliente) : Promise.resolve(),
-        ]);
-      } finally {
-        setIsFetchingAll(false);
+        hasLoadedOverviewRef.current = currentKey; // Bloquear carregamentos subsequentes
+
+        // Reservas Futuras
+        if (numeroCliente) {
+          await getClienteComReservasFuturas(numeroCliente);
+        }
+        // Desportos Futuros e Estatísticas
+        if (email) {
+          await fetchDesportosFuturos(email);
+          await fetchDesportosEstatistica(email);
+        }
+        // Estatísticas de Reserva
+        if (idCliente) {
+          try {
+            await fetchEstatisticaReserva(idCliente);
+          } catch (error) {
+            console.error("Erro ao carregar estatísticas de reserva:", error);
+          }
+        }
+      } catch (err) {
+        console.error("Erro no loadOverviewData:", err);
+        hasLoadedOverviewRef.current = null; // Reverter em caso de erro crítico
       }
     };
 
-    loadData();
-  }, [isInitialized, numeroCliente, email, idCliente]);
+    loadOverviewData();
+  }, [activeTab, numeroCliente, email, idCliente, getClienteComReservasFuturas, fetchDesportosFuturos, fetchDesportosEstatistica, fetchEstatisticaReserva]);
 
+  // ✅ Efeito 2: Carregar dados da tab RESERVAS (apenas quando ativa)
   useEffect(() => {
-    if (reservaEspecifica?.reserva) {
-      setShowDetalheReserva(reservaEspecifica.reserva);
-    }
-  }, [reservaEspecifica]);
+    if (activeTab !== 'reservas' || !numeroCliente) return;
 
+    // ✅ Verifica se já carregou a tab de reservas para este cliente
+    if (hasLoadedReservasTabRef.current === numeroCliente) return;
+
+    const loadReservas = async () => {
+      hasLoadedReservasTabRef.current = numeroCliente;
+      await getClienteCompletoFiltrado({
+        ...FILTRO_CLIENTE_RESERVAS_DEFAULT,
+        numeroCliente,
+      });
+    };
+
+    loadReservas();
+  }, [activeTab, numeroCliente, getClienteCompletoFiltrado]);
+
+  // ✅ Efeito 3: Carregar dados da tab DESPORTO (apenas quando ativa)
   useEffect(() => {
-    if (desportoEspecifico) {
-      setShowDetalheDesporto(desportoEspecifico);
-    }
-  }, [desportoEspecifico]);
+    if (activeTab !== 'desporto' || !email) return;
+
+    // ✅ Verifica se já carregou a tab de desporto para este email
+    if (hasLoadedDesportoTabRef.current === email) return;
+
+    const loadDesporto = async () => {
+      hasLoadedDesportoTabRef.current = email;
+      await getDesportosFiltrados({
+        ...FILTRO_DESPORTO_DEFAULT,
+        email,
+      });
+    };
+
+    loadDesporto();
+  }, [activeTab, email, getDesportosFiltrados]);
 
   function abreviarValor(valor: number) {
     if (valor >= 1_000_000_000) return (valor / 1_000_000_000).toFixed(1) + 'B Kz';
@@ -245,14 +279,13 @@ export default function ClientPortalHome() {
       pagina: 1,
     });
   };
-  
+
   const navigateTo = (path: string) => {
     router.push(path);
   };
-  
+
   const goToHome = () => navigateTo('/dashboard/home');
   const goToAgendar = () => navigateTo('/dashboard/agendar');
-  
 
   const reservasNormalizadas: ReservaCompleta[] = React.useMemo(() => {
     if (!clienteCompleto?.reservas) return [];
@@ -304,9 +337,30 @@ export default function ClientPortalHome() {
     }).format(value);
   };
 
+  // Função para normalizar terminologias (masculino/feminino e sinônimos)
+  const normalizeStatusKey = (status: string) => {
+    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    // Mapeamento de variações para chaves canônicas do STATUS_COLORS
+    const map: Record<string, string> = {
+      'Cancelado': 'Cancelada',
+      'Confirmado': 'Confirmada',
+      'Ativo': 'Confirmada',
+      'Concluido': 'Concluída',
+      'Concluído': 'Concluída',
+      'Expirado': 'Expirada',
+      'Processado': 'Processada',
+      'Pendente': 'Pendente',
+      'Rascunho': 'Rascunho',
+      'Vencido': 'Vencida',
+    };
+
+    return map[s] || s;
+  };
+
   const getStatusColor = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
+    const canonical = normalizeStatusKey(status);
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
   };
 
   const getStatusIcon = (status: string) => {
@@ -323,28 +377,32 @@ export default function ClientPortalHome() {
       'Vencida': <XCircle className="w-3.5 h-3.5" />,
       'Reembolsado': <CheckCircle className="w-3.5 h-3.5" />,
     };
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return icons[normalizedStatus] || <Clock className="w-3.5 h-3.5" />;
+    const canonical = normalizeStatusKey(status);
+    return icons[canonical] || <Clock className="w-3.5 h-3.5" />;
   };
 
   const getStatusDot = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.dot || STATUS_COLORS['Rascunho'].dot;
+    const canonical = normalizeStatusKey(status);
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.dot || STATUS_COLORS['Rascunho'].dot;
   };
 
   const getCaucaoColor = (status: string) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-    return STATUS_COLORS[normalizedStatus as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
+    const s = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    const map: Record<string, string> = {
+      'Ativo': 'Ativa',
+    };
+    const canonical = map[s] || s;
+    return STATUS_COLORS[canonical as keyof typeof STATUS_COLORS]?.badge || STATUS_COLORS['Rascunho'].badge;
   };
 
   // Função helper para exibir status ao usuário
-  const getDisplayStatus = (status: string, totalPago: number) => {
-    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  const getDisplayStatus = (status: string, totalPago: number = 0) => {
+    const canonical = normalizeStatusKey(status);
     // Se está cancelada mas tem pagamento, mostrar como "Expirada"
-    if (normalizedStatus === 'Cancelada' && totalPago > 0) {
+    if (canonical === 'Cancelada' && totalPago > 0) {
       return 'Expirada';
     }
-    return normalizedStatus;
+    return canonical;
   };
 
   const handleLogout = async () => {
@@ -389,16 +447,20 @@ export default function ClientPortalHome() {
     });
   };
 
-  const openModal = (type: string, item: any) => {
+  const openModal = useCallback((type: string, item: any) => {
     setShowModal({ type, item });
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setShowModal({ type: '', item: null });
-  };
+  }, []);
 
-  function handleReserva(data: any) {
-    console.log("📊 Reserva criada:", data);
+  const handleReserva = useCallback((data: any) => {
+    console.log("📊 Reserva criada/atualizada:", data);
+    // ✅ Resetar refs para forçar recarregamento após alteração
+    hasLoadedOverviewRef.current = null;
+    hasLoadedReservasTabRef.current = null;
+
     if (numeroCliente) {
       getClienteComReservasFuturas(numeroCliente);
       getClienteCompletoFiltrado({
@@ -409,30 +471,121 @@ export default function ClientPortalHome() {
     if (idCliente) {
       fetchEstatisticaReserva(idCliente);
     }
-  }
+  }, [numeroCliente, getClienteComReservasFuturas, getClienteCompletoFiltrado, filtroAtual, idCliente, fetchEstatisticaReserva]);
 
-  function handleDesporto(data: any) {
-    console.log("🏃 Desporto criado:", data);
+  const handleDesporto = useCallback((data: any) => {
+    console.log("🏃 Desporto criado/atualizado:", data);
+    // ✅ Resetar refs para forçar recarregamento após alteração
+    hasLoadedOverviewRef.current = null;
+    hasLoadedDesportoTabRef.current = null;
+
     if (email) {
       fetchDesportosFuturos(email);
-      fetchDesportosCompletos(email);
       fetchDesportosEstatistica(email);
       getDesportosFiltrados({
         ...(filtroAtualDesporto || FILTRO_DESPORTO_DEFAULT),
         email,
       });
     }
-  }
+  }, [email, fetchDesportosFuturos, fetchDesportosEstatistica, getDesportosFiltrados, filtroAtualDesporto]);
+
+  // Função para cancelar desporto
+  const handleCancelarDesporto = async (id: string, nome: string) => {
+    const result = await Swal.fire({
+      title: 'Cancelar Atividade?',
+      text: `Tem certeza que deseja cancelar "${nome}"?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sim, cancelar!',
+      cancelButtonText: 'Voltar'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await cancelarDesporto(id);
+
+        // Recarregar dados
+        if (email) {
+          await fetchDesportosFuturos(email);
+          await fetchDesportosEstatistica(email);
+          await getDesportosFiltrados({
+            ...(filtroAtualDesporto || FILTRO_DESPORTO_DEFAULT),
+            email,
+          });
+        }
+
+        Swal.fire(
+          'Cancelado!',
+          'A atividade foi cancelada com sucesso.',
+          'success'
+        );
+      } catch (error) {
+        console.error('Erro ao cancelar desporto:', error);
+        Swal.fire(
+          'Erro!',
+          'Não foi possível cancelar a atividade.',
+          'error'
+        );
+      }
+    }
+  };
+
+  // Função para cancelar reserva
+  const handleCancelarReserva = async (id: string) => {
+    const result = await Swal.fire({
+      title: 'Cancelar Reserva?',
+      text: 'Tem certeza que deseja cancelar esta reserva?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sim, cancelar!',
+      cancelButtonText: 'Voltar'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await cancelarReserva(id);
+
+        // Recarregar dados
+        if (numeroCliente) {
+          getClienteComReservasFuturas(numeroCliente);
+          getClienteCompletoFiltrado({
+            ...(filtroAtual || FILTRO_CLIENTE_RESERVAS_DEFAULT),
+            numeroCliente,
+          });
+        }
+        if (idCliente) {
+          fetchEstatisticaReserva(idCliente);
+        }
+
+        Swal.fire(
+          'Cancelada!',
+          'A reserva foi cancelada com sucesso.',
+          'success'
+        );
+      } catch (error: any) {
+        console.error('Erro ao cancelar reserva:', error);
+        Swal.fire(
+          'Erro!',
+          error.message || 'Não foi possível cancelar a reserva.',
+          'error'
+        );
+      }
+    }
+  };
 
   // ===========================
   // COMPONENTE: ViewModeToggle
   // ===========================
-  const ViewModeToggle = ({ 
-    currentMode, 
-    onModeChange 
-  }: { 
-    currentMode: ViewMode; 
-    onModeChange: (mode: ViewMode) => void 
+  const ViewModeToggle = ({
+    currentMode,
+    onModeChange
+  }: {
+    currentMode: ViewMode;
+    onModeChange: (mode: ViewMode) => void
   }) => (
     <div className="flex border border-gray-200 rounded-lg p-1 bg-gray-50">
       <Button
@@ -468,7 +621,7 @@ export default function ClientPortalHome() {
   // ====================================
   // COMPONENTES DE VISUALIZAÇÃO: RESERVAS
   // ====================================
-  
+
   const ReservasCardsView = ({ reservas }: { reservas: ReservaCompleta[] }) => {
     const formatValor = (valor: number, status: string) => {
       const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
@@ -523,13 +676,35 @@ export default function ClientPortalHome() {
 
                 {renderCaucaoInfo(res)}
 
-                <div className="flex space-x-3 pt-2">
+                <div className="flex flex-row flex-wrap gap-3 pt-2 justify-center">
                   <Button
                     variant="outline"
-                    className="flex-1 px-4 py-2.5 border-2 border-purple-300 text-purple-700 rounded-lg font-medium hover:bg-purple-50 transition-colors text-sm"
-                    onClick={() => setShowDetalheReserva(res)}
+                    size="icon"
+                    className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
+                    onClick={() => openModal('RegistarReserva', res._id)}
+                    title="Editar Reserva"
+                    disabled={res.status !== 'Rascunho'}
                   >
-                    Ver Detalhes
+                    <Pencil className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
+                    onClick={() => handleCancelarReserva(res._id)}
+                    title="Cancelar Reserva"
+                    disabled={res.status !== 'Rascunho'}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 border-2 border-purple-300 text-purple-700 hover:bg-purple-50 transition-colors"
+                    onClick={() => setShowDetalheReserva(res)}
+                    title="Ver Detalhes"
+                  >
+                    <Eye className="w-5 h-5" />
                   </Button>
                 </div>
               </CardContent>
@@ -599,14 +774,37 @@ export default function ClientPortalHome() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-purple-600 hover:bg-purple-50"
-                          onClick={() => setShowDetalheReserva(res)}
-                        >
-                          Ver
-                        </Button>
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600 hover:bg-blue-50 flex items-center gap-1"
+                            onClick={() => openModal('RegistarReserva', res._id)}
+                            disabled={res.status !== 'Rascunho'}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-rose-600 hover:bg-rose-50 flex items-center gap-1"
+                            onClick={() => handleCancelarReserva(res._id)}
+                            disabled={res.status !== 'Rascunho'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Cancelar</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-purple-600 hover:bg-purple-50 flex items-center gap-1"
+                            onClick={() => setShowDetalheReserva(res)}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ver</span>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -667,14 +865,37 @@ export default function ClientPortalHome() {
                       </span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-2 border-purple-300 text-purple-700 hover:bg-purple-50 ml-4"
-                    onClick={() => setShowDetalheReserva(res)}
-                  >
-                    Ver
-                  </Button>
+                  <div className="flex items-center flex-wrap justify-end gap-2 ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                      onClick={() => openModal('RegistarReserva', res._id)}
+                      disabled={res.status !== 'Rascunho'}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 border-rose-300 text-rose-700 hover:bg-rose-50 flex items-center gap-1"
+                      onClick={() => handleCancelarReserva(res._id)}
+                      disabled={res.status !== 'Rascunho'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Cancelar</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 border-purple-300 text-purple-700 hover:bg-purple-50 flex items-center gap-1"
+                      onClick={() => setShowDetalheReserva(res)}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Ver</span>
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -708,12 +929,16 @@ export default function ClientPortalHome() {
             key={desporto._id}
             className="group border-0 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden rounded-xl bg-white border border-gray-200 hover:border-emerald-300 hover:-translate-y-1"
           >
-            <CardContent className="p-6 space-y-3">
+            <CardHeader className="flex flex-row items-center justify-between p-6 pb-3">
+              <CardTitle className="text-lg font-bold text-gray-900">
+                {desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="p-6 pt-0 space-y-3">
+              {/* Conteúdo principal do card */}
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <CardTitle className="text-lg font-bold text-gray-900 mb-2">
-                    {desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}
-                  </CardTitle>
                   <p className="text-sm text-gray-600">
                     {new Date(desporto.dataInicio).toLocaleDateString('pt-PT')} às {desporto.horarioInicio} - {desporto.horarioFim}
                   </p>
@@ -723,9 +948,9 @@ export default function ClientPortalHome() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
-                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(desporto.status)}`}>
-                    {getStatusIcon(desporto.status)}
-                    <span className="ml-1">{desporto.status}</span>
+                  <Badge className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                    {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                    <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                   </Badge>
                 </div>
               </div>
@@ -756,13 +981,46 @@ export default function ClientPortalHome() {
                 </div>
               )}
 
-              <div className="flex space-x-3 pt-2">
+              {/* LINHA DE BOTÕES - unificada em linha com wrap responsivo */}
+              <div className="flex flex-row flex-wrap gap-3 pt-2 justify-center">
                 <Button
                   variant="outline"
-                  className="flex-1 px-4 py-2.5 border-2 border-emerald-300 text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors text-sm"
-                  onClick={() => setShowDetalheDesporto(desporto)}
+                  size="icon"
+                  className="h-10 w-10 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
+                  onClick={() => setShowModal({
+                    type: 'RegistarDesporto',
+                    item: desporto._id
+                  })}
+                  title="Editar Atividade"
+                  disabled={!(desporto.status === 'Expirado' || desporto.status === 'Rascunho')}
                 >
-                  Ver Detalhes
+                  <Pencil className="w-5 h-5" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-2 border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
+                  onClick={() =>
+                    handleCancelarDesporto(
+                      desporto._id,
+                      desporto.nomeEquipe || desporto.tipoAtividade?.nome || 'atividade'
+                    )
+                  }
+                  title="Cancelar Atividade"
+                  disabled={!(desporto.status === 'Expirado' || desporto.status === 'Rascunho')}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                  onClick={() => setShowDetalheDesporto(desporto)}
+                  title="Ver Detalhes"
+                >
+                  <Eye className="w-5 h-5" />
                 </Button>
               </div>
             </CardContent>
@@ -800,13 +1058,13 @@ export default function ClientPortalHome() {
                 <TableHead className="text-gray-900 font-semibold">Pago</TableHead>
                 <TableHead className="text-gray-900 font-semibold">Pendente</TableHead>
                 <TableHead className="text-gray-900 font-semibold">Status</TableHead>
-                <TableHead className="text-right text-gray-900 font-semibold">Ação</TableHead>
+                <TableHead className="text-right text-gray-900 font-semibold">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {desportos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="h-24 text-center">
+                  <TableCell colSpan={11} className="h-24 text-center">
                     <p className="text-gray-500">Nenhuma atividade registrada</p>
                   </TableCell>
                 </TableRow>
@@ -835,20 +1093,48 @@ export default function ClientPortalHome() {
                       {calcularPendente(desporto.valorPagamento, desporto.valorPago, desporto.status)}
                     </TableCell>
                     <TableCell>
-                      <Badge className={`text-xs border ${getStatusColor(desporto.status)}`}>
-                        {getStatusIcon(desporto.status)}
-                        <span className="ml-1">{desporto.status}</span>
+                      <Badge className={`text-xs border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                        {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                        <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-emerald-600 hover:bg-emerald-50"
-                        onClick={() => setShowDetalheDesporto(desporto)}
-                      >
-                        Ver
-                      </Button>
+                      <div className="flex justify-end items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                          onClick={() => setShowModal({
+                            type: 'RegistarDesporto',
+                            item: desporto._id
+                          })}
+                          disabled={!['Rascunho', 'Pendente'].includes(desporto.status)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Editar</span>
+                        </Button>
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
+                          onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
+                          disabled={desporto.status === 'Rascunho'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Cancelar</span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-emerald-600 hover:bg-emerald-50 flex items-center gap-1"
+                          onClick={() => setShowDetalheDesporto(desporto)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver</span>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -884,12 +1170,12 @@ export default function ClientPortalHome() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <div className={`w-3 h-3 rounded-full ${getStatusDot(desporto.status)}`} />
+                    <div className={`w-3 h-3 rounded-full ${getStatusDot(getDisplayStatus(desporto.status, desporto.valorPago))}`} />
                     <h4 className="font-semibold text-gray-900">
                       {desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}
                     </h4>
-                    <Badge className={`text-xs border ${getStatusColor(desporto.status)}`}>
-                      {desporto.status}
+                    <Badge className={`text-xs border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                      {getDisplayStatus(desporto.status, desporto.valorPago)}
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
@@ -915,14 +1201,41 @@ export default function ClientPortalHome() {
                     </span>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 ml-4"
-                  onClick={() => setShowDetalheDesporto(desporto)}
-                >
-                  Ver
-                </Button>
+                <div className="flex flex-wrap justify-end gap-2 ml-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                    onClick={() => setShowModal({
+                      type: 'RegistarDesporto',
+                      item: desporto._id
+                    })}
+                    disabled={!['Rascunho', 'Pendente'].includes(desporto.status)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1"
+                    onClick={() => handleCancelarDesporto(desporto._id, desporto.nomeEquipe || desporto.tipoAtividade?.nome)}
+                    disabled={desporto.status === 'Cancelada' || desporto.status === 'Concluída'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Cancelar</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center gap-1"
+                    onClick={() => setShowDetalheDesporto(desporto)}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Ver</span>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -931,8 +1244,13 @@ export default function ClientPortalHome() {
     );
   };
 
-  // ✅ Renderizar estado de carregamento
-  if (isFetchingAll) {
+  // ✅ Renderizar estado de carregamento APENAS no carregamento inicial
+  // Se já temos dados principais (reservasFuturas ou desportosFuturos), não mostramos o loader de ecrã inteiro
+  const isInitialLoading = (loading || loadingDesportoFuturos) &&
+    !reservasFuturas &&
+    desportosFuturos.length === 0;
+
+  if (isInitialLoading) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center">
         <div className="text-center">
@@ -943,7 +1261,7 @@ export default function ClientPortalHome() {
     );
   }
 
-  if (error || errorDesportoFuturos || errorDesportoCompletos) {
+  if (error || errorDesportoFuturos) {
     return (
       <div className="min-h-screen bg-cyan-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-rose-200 bg-white">
@@ -953,8 +1271,7 @@ export default function ClientPortalHome() {
             <p className="text-gray-600 mb-4">
               {typeof error === 'string' ? error :
                 errorDesportoFuturos ? 'Erro ao carregar desportos futuros' :
-                  errorDesportoCompletos ? 'Erro ao carregar desportos completos' :
-                    'Erro desconhecido'}
+                  'Erro desconhecido'}
             </p>
             <Button
               onClick={() => {
@@ -968,7 +1285,6 @@ export default function ClientPortalHome() {
                 }
                 if (email) {
                   fetchDesportosFuturos(email);
-                  fetchDesportosCompletos(email);
                 }
               }}
               className="bg-purple-600 hover:bg-purple-700 text-white"
@@ -1117,7 +1433,7 @@ export default function ClientPortalHome() {
               <p className="text-2xl font-bold text-gray-900">
                 {reservaEstatistica?.totalReserva
                   ? abreviarValor(reservaEstatistica.totalReserva)
-                  : '0'} 
+                  : '0'}
               </p>
 
               <div className="mt-3 pt-3 border-t border-gray-100">
@@ -1282,9 +1598,9 @@ export default function ClientPortalHome() {
                                 <p className="font-medium text-gray-900">
                                   {res.espaco?.nome || res.tipoEvento?.nome || 'Reserva'}
                                 </p>
-                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(res.status)}`}>
-                                  {getStatusIcon(res.status)}
-                                  <span className="ml-1">{res.status}</span>
+                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(getDisplayStatus(res.status, res.totalPago))}`}>
+                                  {getStatusIcon(getDisplayStatus(res.status, res.totalPago))}
+                                  <span className="ml-1">{getDisplayStatus(res.status, res.totalPago)}</span>
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-600">
@@ -1314,9 +1630,9 @@ export default function ClientPortalHome() {
                             <div key={desporto._id} className="group border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden rounded-lg bg-white p-4 border border-gray-200">
                               <div className="flex justify-between items-start mb-2">
                                 <p className="font-medium text-gray-900">{desporto.nomeEquipe || (typeof desporto.tipoAtividade === 'object' ? desporto.tipoAtividade.nome : desporto.tipoAtividade)}</p>
-                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(desporto.status)}`}>
-                                  {getStatusIcon(desporto.status)}
-                                  <span className="ml-1">{desporto.status}</span>
+                                <Badge className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-medium border ${getStatusColor(getDisplayStatus(desporto.status, desporto.valorPago))}`}>
+                                  {getStatusIcon(getDisplayStatus(desporto.status, desporto.valorPago))}
+                                  <span className="ml-1">{getDisplayStatus(desporto.status, desporto.valorPago)}</span>
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-600">
@@ -1371,9 +1687,9 @@ export default function ClientPortalHome() {
                       )}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <ViewModeToggle 
-                        currentMode={reservasViewMode} 
-                        onModeChange={setReservasViewMode} 
+                      <ViewModeToggle
+                        currentMode={reservasViewMode}
+                        onModeChange={setReservasViewMode}
                       />
                       <Button
                         size="lg"
@@ -1426,18 +1742,18 @@ export default function ClientPortalHome() {
                       ) : (
                         <>
                           {reservasViewMode === 'cards' && (
-                            <ReservasCardsView 
-                              reservas={reservasPaginadas.reservas.map(normalizarReserva)} 
+                            <ReservasCardsView
+                              reservas={reservasPaginadas.reservas.map(normalizarReserva)}
                             />
                           )}
                           {reservasViewMode === 'table' && (
-                            <ReservasTableView 
-                              reservas={reservasPaginadas.reservas.map(normalizarReserva)} 
+                            <ReservasTableView
+                              reservas={reservasPaginadas.reservas.map(normalizarReserva)}
                             />
                           )}
                           {reservasViewMode === 'list' && (
-                            <ReservasListView 
-                              reservas={reservasPaginadas.reservas.map(normalizarReserva)} 
+                            <ReservasListView
+                              reservas={reservasPaginadas.reservas.map(normalizarReserva)}
                             />
                           )}
 
@@ -1496,9 +1812,9 @@ export default function ClientPortalHome() {
                       )}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <ViewModeToggle 
-                        currentMode={desportosViewMode} 
-                        onModeChange={setDesportosViewMode} 
+                      <ViewModeToggle
+                        currentMode={desportosViewMode}
+                        onModeChange={setDesportosViewMode}
                       />
                       <Button
                         size="lg"
@@ -1586,15 +1902,20 @@ export default function ClientPortalHome() {
         </Card>
       </main>
 
-      {showDetalheReserva && (
-        <ModalDetalheReserva
+      {/* ✅ CORRIGIDO: Não exibir modais de detalhe quando em modo edição */}
+      {showDetalheReserva && showModal.type !== 'RegistarReserva' && (
+        <ModalDetalheReservaUpdated
           data={showDetalheReserva}
           open={true}
           onClose={() => setShowDetalheReserva(null)}
+          onEdit={(id) => {
+            setShowDetalheReserva(null);
+            openModal('RegistarReserva', id);
+          }}
         />
       )}
 
-      {showDetalheDesporto && (
+      {showDetalheDesporto && showModal.type !== 'RegistarDesporto' && (
         <ModalDetalheDesporto
           data={showDetalheDesporto}
           open={true}
@@ -1614,6 +1935,7 @@ export default function ClientPortalHome() {
         <FormcrearDesporto
           handleDesporto={handleDesporto}
           onClose={closeModal}
+          desportoId={showModal.item} // 👈 Passa o ID (undefined para criação)
         />
       )}
 

@@ -213,7 +213,7 @@ export const useNotificacaoStore = create<IUseNotificacaoStore>((set, get) => ({
 
       // IMPORTANTE: Retornar os dados
       return result;
-    } catch (error: any) {
+    } catch (error:any) {
       console.error("Erro ao buscar notificações ordenadas:", error);
       const errorMessage = error.response?.data?.message || error.message || 'Erro ao buscar notificações ordenadas';
       set({ error: errorMessage, loading: false });

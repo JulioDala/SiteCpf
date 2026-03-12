@@ -5,6 +5,8 @@
   --foreground: #171717;
   --sonangol: #FFDE21;
   --sonangol-foreground: #000000;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 }
 
 @theme inline {
@@ -12,6 +14,8 @@
   --color-foreground: var(--foreground);
   --color-sonangol: var(--sonangol);
   --color-sonangol-foreground: var(--sonangol-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   /* --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono); */
 }

@@ -48,8 +48,13 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
     }
   }, [isOpen, mesSelecionado, anoSelecionado, espacoId]);
 
-  const carregarCalendario = () => {
-    getCalendarioGeralReservas({ mes: mesSelecionado, ano: anoSelecionado, espacoId });
+  const carregarCalendario = async () => {
+    try {
+      await getCalendarioGeralReservas({ mes: mesSelecionado, ano: anoSelecionado, espacoId });
+    } catch (err) {
+      // Handle error if necessary
+      console.error("Failed to load calendar:", err);
+    }
   };
 
   const navegarParaMesAnterior = () => {
@@ -122,7 +127,7 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
   };
 
   const handleDiaClick = (dia: any) => {
-    if (dia.vazio || (!dia.ocupacao?.temReservas && dia.ocupacao?.nivel === 'BAIXA')) return;
+    if (dia.vazio || (!dia.temReservas && dia.ocupacao?.nivel === 'BAIXA')) return;
 
     setDiaSelecionado(dia);
     setMostrarDetalhesDia(true);
@@ -310,7 +315,7 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
                             {dia.ocupacao?.temReservas ? (
                               <div className="space-y-1">
                                 <div className="text-xs font-semibold">
-                                  {dia.ocupacao.totalReservas} reserva{dia.ocupacao.totalReservas !== 1 ? 's' : ''}
+                                  {dia.ocupacao?.totalReservas} reserva{dia.ocupacao?.totalReservas !== 1 ? 's' : ''}
                                 </div>
                                 <div className="text-xs opacity-80">
                                   {formatarPercentual(dia.ocupacao?.percentual || 0)} ocupado
@@ -457,8 +462,8 @@ const ModalCalendarioGeral: React.FC<ModalCalendarioGeralProps> = ({
                   <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div
                       className={`h-3 rounded-full transition-all duration-700 ${diaSelecionado.ocupacao.nivel === 'BAIXA' ? 'bg-emerald-500' :
-                          diaSelecionado.ocupacao.nivel === 'MEDIA' ? 'bg-amber-500' :
-                            diaSelecionado.ocupacao.nivel === 'ALTA' ? 'bg-orange-500' : 'bg-red-500'
+                        diaSelecionado.ocupacao.nivel === 'MEDIA' ? 'bg-amber-500' :
+                          diaSelecionado.ocupacao.nivel === 'ALTA' ? 'bg-orange-500' : 'bg-red-500'
                         }`}
                       style={{ width: `${diaSelecionado.ocupacao.percentual}%` }}
                     />
