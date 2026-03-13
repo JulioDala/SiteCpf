@@ -395,8 +395,8 @@ export default function ModalDetalheDesporto({ data, open, onClose }: ModalDetal
                 variant="outline"
                 size="sm"
                 onClick={() => setShowContratoPreview(true)}
-                className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                disabled={loading}
+                className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200"
+                disabled={loading || displayData?.status === 'Rascunho'}
               >
                 <FileText className="w-4 h-4" />
                 <span>Contrato</span>

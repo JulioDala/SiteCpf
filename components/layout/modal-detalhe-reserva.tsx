@@ -499,8 +499,8 @@ export default function ModalDetalheReservaUpdated({ data: initialData, open, on
                 variant="outline"
                 size="sm"
                 onClick={handleGerarContrato}
-                className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                disabled={isLoading || !data}
+                className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200"
+                disabled={isLoading || !data || data?.status === 'Rascunho'}
               >
                 <FileText className="w-4 h-4" />
                 <span>Contrato</span>
